@@ -260,6 +260,8 @@ body {
   margin: 0 0 8px 0;
   font-size: 14px;
   font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 .summary-card p {
   margin: 0;
@@ -493,4 +495,119 @@ body {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+/* --- ESTILOS NUEVOS PARA VISTA DE REPORTES --- */
+.report-date-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-grow: 1;
+}
+.report-date-picker label {
+  font-weight: 500;
+  color: #495057;
+}
+.report-date-picker input[type="date"] {
+  border: 1px solid #dee2e6;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 16px;
+  font-family: "Inter", sans-serif;
+  color: #212529;
+  outline: none;
+}
+.summary-card.total-reporte {
+  background-color: #cfe2ff;
+  color: #0a58ca;
+}
+
+.history-column li .item-info small {
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* --- ESTILOS ADICIONALES PARA VENTAS MÚLTIPLES --- */
+
+.venta-items-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.venta-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.venta-item-row input[type="text"] {
+  flex-grow: 1; /* El campo de descripción ocupa el espacio sobrante */
+}
+
+.venta-item-row input[type="number"] {
+  width: 100px; /* Ancho fijo para el precio */
+}
+
+.remove-item-btn {
+  background-color: #f8d7da;
+  border: none;
+  color: #842029;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  line-height: 32px;
+  text-align: center;
+}
+
+.add-item-btn {
+  background-color: #e9ecef;
+  color: #495057;
+  border: 1px dashed #ced4da;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.venta-total {
+  text-align: right;
+  font-size: 18px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #dee2e6;
+}
+
+/* Estilos para el modal de detalle de venta */
+.venta-detail-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.venta-detail-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 4px;
+  border-bottom: 1px solid #f1f3f5;
+}
+.venta-detail-list li.total-row {
+  font-size: 18px;
+  border-top: 2px solid #333;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+/* Hacer que las filas del historial se vean clickables */
+.history-column li.clickable-row {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.history-column li.clickable-row:hover {
+  background-color: #f8f9fa;
 }
