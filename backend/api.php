@@ -1,266 +1,186 @@
 <?php
-// ===== Encabezados y Zona Horaria =====
-header("Access-Control-Allow-Origin: *");
+// Inicia la sesión de forma segura
+session_start([
+    'cookie_lifetime' => 86400, // 24 horas
+    'cookie_secure' => true,    // Solo enviar cookie por HTTPS
+    'cookie_httponly' => true,  // No accesible por JavaScript
+    'cookie_samesite' => 'None' // Necesario para CORS con credenciales
+]);
+
+// --- SECCIÓN DE ENCABEZADOS CORREGIDA ---
+// Lista de orígenes permitidos.
+$allowed_origins = [
+    "http://localhost:3000",                 // Para tu desarrollo en local
+    "https://rustiko.mangodigitalcr.com"     // Tu dominio público confirmado
+];
+
+// Comprueba si el origen de la petición está en la lista de permitidos.
+if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowed_origins)) {
+    // Si lo está, responde con ese origen específico.
+    header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
+}
+
+header("Access-Control-Allow-Credentials: true");
 header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Max-Age: 3600");
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-header("Cache-Control: no-cache, no-store, must-revalidate");
-header("Pragma: no-cache");
-header("Expires: 0");
-
 date_default_timezone_set('America/Costa_Rica');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
-
-// ===== Parámetros de Conexión =====
-$hostname = "mysql.mangodigitalcr.com";
-$database = "rustiko";
-$username = "mangodigital";
-$password = "MangoDigitalCR2025";
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
 // ===== Conexión a la Base de Datos =====
+$hostname = "mysql.mangodigitalcr.com";
+$database = "rustiko";
+$username_db = "mangodigital";
+$password_db = "MangoDigitalCR2025";
 try {
-    $conn = new PDO("mysql:host=$hostname;dbname=$database;charset=utf8", $username, $password);
+    $conn = new PDO("mysql:host=$hostname;dbname=$database;charset=utf8", $username_db, $password_db);
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch(PDOException $e) {
-    http_response_code(503);
-    echo json_encode(["message" => "Error de conexión a la base de datos.", "error" => $e->getMessage()]);
-    exit();
-}
+} catch(PDOException $e) { http_response_code(503); echo json_encode(["message" => "Error de conexión."]); exit(); }
 
 // ===== Enrutador de Acciones =====
 $action = isset($_GET['action']) ? $_GET['action'] : null;
 $method = $_SERVER['REQUEST_METHOD'];
 $input = json_decode(file_get_contents('php://input'), true);
 
+// Rutas públicas que no requieren inicio de sesión
+if ($action === 'login') { login($conn, $input); exit(); }
+if ($action === 'logout') { logout(); exit(); }
+if ($action === 'check_session') { check_session(); exit(); }
+
+// --- BARRERA DE SEGURIDAD ---
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401); echo json_encode(["message" => "Acceso no autorizado."]); exit();
+}
+
+// Rutas protegidas
 switch ($action) {
     case 'clientes':
-        if ($method === 'GET') {
-            $searchTerm = isset($_GET['search']) ? $_GET['search'] : null;
-            getClientes($conn, $searchTerm);
-        } elseif ($method === 'POST') {
-            addCliente($conn, $input);
-        } elseif ($method === 'PUT') {
-            updateCliente($conn, $input);
-        } elseif ($method === 'DELETE') {
-            $id = isset($_GET['id']) ? $_GET['id'] : null;
-            deleteCliente($conn, $id);
-        }
+        if ($method === 'GET') { getClientes($conn, isset($_GET['search']) ? $_GET['search'] : null); }
+        elseif ($method === 'POST') { addCliente($conn, $input); }
+        elseif ($method === 'PUT') { updateCliente($conn, $input); }
+        elseif ($method === 'DELETE') { deleteCliente($conn, isset($_GET['id']) ? $_GET['id'] : null); }
         break;
-
     case 'reportes':
-        if ($method === 'GET') {
-            $reportDate = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
-            getReportePorFecha($conn, $reportDate);
-        }
+        if ($method === 'GET') { getReportePorFecha($conn, isset($_GET['date']) ? $_GET['date'] : date('Y-m-d')); }
         break;
-
     case 'venta_detalle':
-        if ($method === 'GET') {
-            $venta_id = isset($_GET['venta_id']) ? $_GET['venta_id'] : null;
-            getVentaDetalles($conn, $venta_id);
-        }
+        if ($method === 'GET') { getVentaDetalles($conn, isset($_GET['venta_id']) ? $_GET['venta_id'] : null); }
         break;
-
     case 'ventas':
-        $cliente_id = isset($_GET['cliente_id']) ? $_GET['cliente_id'] : null;
-        if ($method == 'GET' && $cliente_id) { 
-            getTransacciones($conn, 'ventas', $cliente_id); 
-        } elseif ($method == 'POST') { 
-            addVenta($conn, $input); 
-        } elseif ($method == 'DELETE') { 
-            $id = isset($_GET['id']) ? $_GET['id'] : null; 
-            deleteTransaccion($conn, 'ventas', $id); 
-        }
+        if ($method == 'GET') { getTransacciones($conn, 'ventas', isset($_GET['cliente_id']) ? $_GET['cliente_id'] : null); }
+        elseif ($method == 'POST') { addVenta($conn, $input); }
+        elseif ($method == 'DELETE') { deleteTransaccion($conn, 'ventas', isset($_GET['id']) ? $_GET['id'] : null); }
         break;
-
     case 'abonos':
-        $cliente_id = isset($_GET['cliente_id']) ? $_GET['cliente_id'] : null;
-        if ($method == 'GET' && $cliente_id) { getTransacciones($conn, 'abonos', $cliente_id); }
+        if ($method == 'GET') { getTransacciones($conn, 'abonos', isset($_GET['cliente_id']) ? $_GET['cliente_id'] : null); }
         elseif ($method == 'POST') { addAbono($conn, $input); }
-        elseif ($method == 'DELETE') { $id = isset($_GET['id']) ? $_GET['id'] : null; deleteTransaccion($conn, 'abonos', $id); }
+        elseif ($method == 'DELETE') { deleteTransaccion($conn, 'abonos', isset($_GET['id']) ? $_GET['id'] : null); }
         break;
-
     default:
-        http_response_code(404);
-        echo json_encode(["message" => "Acción no válida o no encontrada."]);
-        break;
+        http_response_code(404); echo json_encode(["message" => "Acción no válida."]); break;
 }
 
-// ===== FUNCIONES DE LA API =====
-
+// ===== FUNCIONES =====
+function login($db, $data) {
+    if (empty($data['username']) || empty($data['password'])) { http_response_code(400); echo json_encode(['message' => 'Usuario y contraseña son requeridos.']); return; }
+    $stmt = $db->prepare("SELECT id, username, password_hash FROM usuarios WHERE username = :username");
+    $stmt->execute([':username' => $data['username']]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($user && password_verify($data['password'], $user['password_hash'])) {
+        session_regenerate_id(true);
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_username'] = $user['username'];
+        http_response_code(200);
+        echo json_encode(['username' => $user['username']]);
+    } else {
+        http_response_code(401); echo json_encode(['message' => 'Usuario o contraseña incorrectos.']);
+    }
+}
+function logout() { session_unset(); session_destroy(); http_response_code(200); echo json_encode(['message' => 'Sesión cerrada.']); }
+function check_session() {
+    if (isset($_SESSION['user_id']) && isset($_SESSION['user_username'])) {
+        http_response_code(200); echo json_encode(['isLoggedIn' => true, 'user' => ['username' => $_SESSION['user_username']]]);
+    } else {
+        http_response_code(200); echo json_encode(['isLoggedIn' => false]);
+    }
+}
 function getVentaDetalles($db, $venta_id) {
-    if (empty($venta_id)) {
-        http_response_code(400); echo json_encode(["message" => "Se requiere el ID de la venta."]); return;
-    }
-    try {
-        $sql = "SELECT id, producto_descripcion, precio FROM venta_detalles WHERE venta_id = :venta_id";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([':venta_id' => $venta_id]);
-        $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode($detalles);
-    } catch (Exception $e) {
-        http_response_code(500); echo json_encode(["message" => "Error al obtener detalles de la venta: " . $e->getMessage()]);
-    }
+    if (empty($venta_id)) { http_response_code(400); echo json_encode(["message" => "Se requiere el ID de la venta."]); return; }
+    $stmt = $db->prepare("SELECT id, producto_descripcion, precio FROM venta_detalles WHERE venta_id = :venta_id");
+    $stmt->execute([':venta_id' => $venta_id]);
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
 }
-
 function addVenta($db, $data) {
-    if (empty($data['cliente_id']) || empty($data['productos']) || !is_array($data['productos'])) {
-        http_response_code(400); echo json_encode(["message" => "Datos de venta incompletos o en formato incorrecto."]); return;
-    }
-    $cliente_id = $data['cliente_id'];
-    $productos = $data['productos'];
+    if (empty($data['cliente_id']) || empty($data['productos']) || !is_array($data['productos'])) { http_response_code(400); echo json_encode(["message" => "Datos de venta incompletos."]); return; }
     $monto_total = 0;
-    foreach ($productos as $producto) {
-        if (!isset($producto['precio']) || !is_numeric($producto['precio'])) {
-             http_response_code(400); echo json_encode(["message" => "Todos los productos deben tener un precio válido."]); return;
-        }
-        $monto_total += floatval($producto['precio']);
-    }
-    $descripcion_general = count($productos) > 0 ? $productos[0]['descripcion'] : 'Venta de varios productos';
-    
+    foreach ($data['productos'] as $p) { if (!isset($p['precio'])||!is_numeric($p['precio'])) { http_response_code(400); echo json_encode(["message" => "Productos con precio inválido."]); return; } $monto_total += floatval($p['precio']); }
+    $desc = count($data['productos']) > 0 ? $data['productos'][0]['descripcion'] : 'Venta';
     $db->beginTransaction();
     try {
-        $sqlVenta = "INSERT INTO ventas (cliente_id, monto_total, descripcion) VALUES (:cliente_id, :monto_total, :descripcion)";
-        $stmtVenta = $db->prepare($sqlVenta);
-        $stmtVenta->execute([':cliente_id' => $cliente_id, ':monto_total' => $monto_total, ':descripcion' => $descripcion_general]);
+        $stmtVenta = $db->prepare("INSERT INTO ventas (cliente_id, monto_total, descripcion) VALUES (:cid, :mt, :d)");
+        $stmtVenta->execute([':cid' => $data['cliente_id'], ':mt' => $monto_total, ':d' => $desc]);
         $venta_id = $db->lastInsertId();
-
-        $sqlDetalle = "INSERT INTO venta_detalles (venta_id, producto_descripcion, precio) VALUES (:venta_id, :producto_descripcion, :precio)";
-        $stmtDetalle = $db->prepare($sqlDetalle);
-        foreach ($productos as $producto) {
-            $stmtDetalle->execute([':venta_id' => $venta_id, ':producto_descripcion' => $producto['descripcion'], ':precio' => $producto['precio']]);
-        }
-        
+        $stmtDetalle = $db->prepare("INSERT INTO venta_detalles (venta_id, producto_descripcion, precio) VALUES (:vid, :pd, :p)");
+        foreach ($data['productos'] as $p) { $stmtDetalle->execute([':vid' => $venta_id, ':pd' => $p['descripcion'], ':p' => $p['precio']]); }
         $db->commit();
-        http_response_code(201); echo json_encode(["message" => "Venta agregada exitosamente."]);
-    } catch(Exception $e) {
-        $db->rollBack();
-        http_response_code(500); echo json_encode(["message" => "Error al agregar la venta: " . $e->getMessage()]);
+        http_response_code(201); echo json_encode(["message" => "Venta agregada."]);
+    } catch(Exception $e) { $db->rollBack(); http_response_code(500); echo json_encode(["message" => "Error al agregar venta: " . $e->getMessage()]); }
+}
+function getReportePorFecha($db, $date) {
+    $stmtVentas = $db->prepare("SELECT v.id, v.monto_total, v.descripcion, v.fecha, c.nombre_completo FROM ventas v JOIN clientes c ON v.cliente_id = c.id WHERE DATE(v.fecha) = :date ORDER BY v.fecha DESC");
+    $stmtVentas->execute([':date' => $date]);
+    $stmtAbonos = $db->prepare("SELECT a.id, a.monto, a.fecha, c.nombre_completo FROM abonos a JOIN clientes c ON a.cliente_id = c.id WHERE DATE(a.fecha) = :date ORDER BY a.fecha DESC");
+    $stmtAbonos->execute([':date' => $date]);
+    echo json_encode(['ventas' => $stmtVentas->fetchAll(PDO::FETCH_ASSOC), 'abonos' => $stmtAbonos->fetchAll(PDO::FETCH_ASSOC)]);
+}
+function getClientes($db, $searchTerm = null) {
+    if ($searchTerm && trim($searchTerm) !== '') {
+        $stmt = $db->prepare("SELECT id, nombre_completo, telefono, direccion FROM clientes WHERE nombre_completo LIKE :searchTerm OR telefono LIKE :searchTerm ORDER BY nombre_completo ASC");
+        $stmt->execute([':searchTerm' => '%' . $searchTerm . '%']);
+    } else {
+        $stmt = $db->prepare("SELECT id, nombre_completo, telefono, direccion FROM clientes ORDER BY nombre_completo ASC");
+        $stmt->execute();
     }
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
 }
-
-function getReportePorFecha($db, $reportDate) {
-    try {
-        $sqlVentas = "SELECT v.id, v.monto_total, v.descripcion, v.fecha, c.nombre_completo 
-                      FROM ventas v JOIN clientes c ON v.cliente_id = c.id WHERE DATE(v.fecha) = :report_date ORDER BY v.fecha DESC";
-        $stmtVentas = $db->prepare($sqlVentas);
-        $stmtVentas->execute([':report_date' => $reportDate]);
-        $ventas = $stmtVentas->fetchAll(PDO::FETCH_ASSOC);
-
-        $sqlAbonos = "SELECT a.id, a.monto, a.fecha, c.nombre_completo 
-                      FROM abonos a JOIN clientes c ON a.cliente_id = c.id WHERE DATE(a.fecha) = :report_date ORDER BY a.fecha DESC";
-        $stmtAbonos = $db->prepare($sqlAbonos);
-        $stmtAbonos->execute([':report_date' => $reportDate]);
-        $abonos = $stmtAbonos->fetchAll(PDO::FETCH_ASSOC);
-
-        echo json_encode(['ventas' => $ventas, 'abonos' => $abonos]);
-    } catch(Exception $e) {
-        http_response_code(500); echo json_encode(["message" => "Error al obtener el reporte: " . $e->getMessage()]);
-    }
+function addCliente($db, $data) {
+    if (empty($data['nombre_completo'])||empty($data['telefono'])) { http_response_code(400); echo json_encode(["message" => "Nombre y teléfono requeridos."]); return; }
+    $stmt = $db->prepare("INSERT INTO clientes (nombre_completo, telefono, direccion) VALUES (:n, :t, :d)");
+    $stmt->execute([':n' => $data['nombre_completo'], ':t' => $data['telefono'], ':d' => $data['direccion'] ?? '']);
+    http_response_code(201); echo json_encode(["message" => "Cliente creado.", "id" => $db->lastInsertId()]);
 }
-
-function getClientes($db, $searchTerm = null) { 
-    try { 
-        if ($searchTerm && trim($searchTerm) !== '') { 
-            $sql = "SELECT id, nombre_completo, telefono, direccion FROM clientes WHERE nombre_completo LIKE :searchTerm OR telefono LIKE :searchTerm ORDER BY nombre_completo ASC"; 
-            $stmt = $db->prepare($sql); 
-            $stmt->execute([':searchTerm' => '%' . $searchTerm . '%']); 
-        } else { 
-            $sql = "SELECT id, nombre_completo, telefono, direccion FROM clientes ORDER BY nombre_completo ASC"; 
-            $stmt = $db->prepare($sql); 
-            $stmt->execute(); 
-        } 
-        $clientes = $stmt->fetchAll(PDO::FETCH_ASSOC); 
-        echo json_encode($clientes); 
-    } catch(Exception $e) { 
-        http_response_code(500); echo json_encode(["message" => "Error al obtener clientes: " . $e->getMessage()]); 
-    } 
+function updateCliente($db, $data) {
+    if (empty($data['id'])||empty($data['nombre_completo'])||empty($data['telefono'])) { http_response_code(400); echo json_encode(["message" => "ID, Nombre y teléfono requeridos."]); return; }
+    $stmt = $db->prepare("UPDATE clientes SET nombre_completo = :n, telefono = :t, direccion = :d WHERE id = :id");
+    $stmt->execute([':id' => $data['id'], ':n' => $data['nombre_completo'], ':t' => $data['telefono'], ':d' => $data['direccion'] ?? '']);
+    if ($stmt->rowCount()>0) { http_response_code(200); echo json_encode(["message" => "Cliente actualizado."]); }
+    else { http_response_code(404); echo json_encode(["message" => "Cliente no encontrado o datos idénticos."]); }
 }
-
-function addCliente($db, $data) { 
-    if (empty($data['nombre_completo']) || empty($data['telefono'])) { http_response_code(400); echo json_encode(["message" => "Nombre y teléfono son obligatorios."]); return; } 
-    try { 
-        $sql = "INSERT INTO clientes (nombre_completo, telefono, direccion) VALUES (:nombre, :telefono, :direccion)"; 
-        $stmt = $db->prepare($sql); 
-        $stmt->execute([':nombre' => $data['nombre_completo'], ':telefono' => $data['telefono'], ':direccion' => isset($data['direccion']) ? $data['direccion'] : '']); 
-        http_response_code(201); echo json_encode(["message" => "Cliente creado exitosamente.", "id" => $db->lastInsertId()]); 
-    } catch(Exception $e) { 
-        http_response_code(500); echo json_encode(["message" => "Error al crear cliente: " . $e->getMessage()]); 
-    } 
+function deleteCliente($db, $id) {
+    if (empty($id)) { http_response_code(400); echo json_encode(["message" => "ID de cliente requerido."]); return; }
+    $stmt = $db->prepare("DELETE FROM clientes WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    if ($stmt->rowCount()>0) { http_response_code(200); echo json_encode(["message" => "Cliente eliminado."]); }
+    else { http_response_code(404); echo json_encode(["message" => "Cliente no encontrado."]); }
 }
-
-function updateCliente($db, $data) { 
-    if (empty($data) || !is_array($data)) { http_response_code(400); echo json_encode(["message" => "Datos inválidos."]); return; } 
-    $id = isset($data['id']) ? (int)$data['id'] : null; 
-    if (empty($id) || empty($data['nombre_completo']) || empty($data['telefono'])) { http_response_code(400); echo json_encode(["message" => "ID, Nombre y teléfono son obligatorios para actualizar."]); return; } 
-    try { 
-        $sql = "UPDATE clientes SET nombre_completo = :nombre, telefono = :telefono, direccion = :direccion WHERE id = :id"; 
-        $stmt = $db->prepare($sql); 
-        $stmt->execute([':id' => $id, ':nombre' => $data['nombre_completo'], ':telefono' => $data['telefono'], ':direccion' => isset($data['direccion']) ? $data['direccion'] : '']); 
-        if ($stmt->rowCount() > 0) { http_response_code(200); echo json_encode(["message" => "Cliente actualizado exitosamente."]); } 
-        else { http_response_code(404); echo json_encode(["message" => "No se encontró el cliente para actualizar o los datos enviados eran idénticos."]); } 
-    } catch(Exception $e) { 
-        http_response_code(500); echo json_encode(["message" => "Error al actualizar cliente: " . $e->getMessage()]); 
-    } 
+function getTransacciones($db, $tabla, $cid) {
+    if(!$cid){ return; }
+    $sql = ($tabla==='ventas') ? "SELECT id, monto_total, descripcion, fecha FROM ventas WHERE cliente_id = :cid ORDER BY fecha DESC" : "SELECT id, monto, fecha FROM abonos WHERE cliente_id = :cid ORDER BY fecha DESC";
+    $stmt = $db->prepare($sql); $stmt->execute([':cid' => $cid]);
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
 }
-
-function deleteCliente($db, $id) { 
-    $id = (int)$id; 
-    if (empty($id)) { http_response_code(400); echo json_encode(["message" => "Se requiere el ID del cliente para eliminar."]); return; } 
-    try { 
-        $sql = "DELETE FROM clientes WHERE id = :id"; 
-        $stmt = $db->prepare($sql); 
-        $stmt->execute([':id' => $id]); 
-        if ($stmt->rowCount() > 0) { http_response_code(200); echo json_encode(["message" => "Cliente eliminado exitosamente."]); } 
-        else { http_response_code(404); echo json_encode(["message" => "No se encontró el cliente a eliminar."]); } 
-    } catch(Exception $e) { 
-        http_response_code(500); echo json_encode(["message" => "Error al eliminar cliente: " . $e->getMessage()]); 
-    } 
+function addAbono($db, $data) {
+    if (empty($data['cliente_id'])||!isset($data['monto'])) { http_response_code(400); echo json_encode(["message" => "Datos de abono incompletos."]); return; }
+    $stmt = $db->prepare("INSERT INTO abonos (cliente_id, monto) VALUES (:cid, :m)");
+    $stmt->execute([':cid' => $data['cliente_id'], ':m' => $data['monto']]);
+    http_response_code(201); echo json_encode(["message" => "Abono agregado."]);
 }
-
-function getTransacciones($db, $tabla, $cliente_id) { 
-    try { 
-        if ($tabla === 'ventas') {
-            $sql = "SELECT id, monto_total, descripcion, fecha FROM {$tabla} WHERE cliente_id = :cliente_id ORDER BY fecha DESC";
-        } else { // abonos
-            $sql = "SELECT id, monto, fecha FROM {$tabla} WHERE cliente_id = :cliente_id ORDER BY fecha DESC"; 
-        }
-        $stmt = $db->prepare($sql); 
-        $stmt->execute([':cliente_id' => $cliente_id]); 
-        $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC); 
-        echo json_encode($resultados); 
-    } catch(Exception $e) { 
-        http_response_code(500); echo json_encode(["message" => "Error al obtener de la tabla {$tabla}: " . $e->getMessage()]); 
-    } 
-}
-
-function addAbono($db, $data) { 
-    if (empty($data['cliente_id']) || !isset($data['monto'])) { http_response_code(400); echo json_encode(["message" => "Datos de abono incompletos."]); return; } 
-    try { 
-        $sql = "INSERT INTO abonos (cliente_id, monto) VALUES (:cliente_id, :monto)"; 
-        $stmt = $db->prepare($sql); 
-        $stmt->execute([':cliente_id' => $data['cliente_id'], ':monto' => $data['monto']]); 
-        http_response_code(201); echo json_encode(["message" => "Abono agregado."]); 
-    } catch(Exception $e) { 
-        http_response_code(500); echo json_encode(["message" => "Error al agregar abono: " . $e->getMessage()]); 
-    } 
-}
-
-function deleteTransaccion($db, $tabla, $id) { 
-    if (empty($id)) { http_response_code(400); echo json_encode(["message" => "Se requiere ID para eliminar."]); return; } 
-    try { 
-        $sql = "DELETE FROM {$tabla} WHERE id = :id"; 
-        $stmt = $db->prepare($sql); 
-        $stmt->execute([':id' => $id]); 
-        http_response_code(200); echo json_encode(["message" => "Registro eliminado de {$tabla}."]); 
-    } catch(Exception $e) { 
-        http_response_code(500); echo json_encode(["message" => "Error al eliminar de {$tabla}: " . $e->getMessage()]); 
-    } 
+function deleteTransaccion($db, $tabla, $id) {
+    if (empty($id)) { http_response_code(400); echo json_encode(["message" => "ID requerido."]); return; }
+    $stmt = $db->prepare("DELETE FROM {$tabla} WHERE id = :id"); $stmt->execute([':id' => $id]);
+    http_response_code(200); echo json_encode(["message" => "Registro eliminado."]);
 }
 
 $conn = null;

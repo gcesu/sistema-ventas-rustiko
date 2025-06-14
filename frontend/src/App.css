@@ -611,3 +611,74 @@ body {
 .history-column li.clickable-row:hover {
   background-color: #f8f9fa;
 }
+
+/* --- Estilos para Login y Pantalla de Carga --- */
+.loading-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-size: 24px;
+  color: #6c757d;
+  font-family: "Inter", sans-serif;
+}
+
+.auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+}
+
+.auth-form {
+  background-color: #ffffff;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.auth-form h2 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 28px;
+}
+
+.auth-form p {
+  margin-bottom: 24px;
+  color: #6c757d;
+}
+
+.auth-form form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-form input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+.auth-form .btn-submit {
+  margin-top: 8px;
+  padding: 14px; /* Un poco más alto para el botón principal */
+}
+
+.auth-error {
+  color: #dc3545;
+  background-color: #f8d7da;
+  border: 1px solid #f5c2c7;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 0;
+  margin-bottom: 0;
+  text-align: center;
+  font-size: 15px;
+}
