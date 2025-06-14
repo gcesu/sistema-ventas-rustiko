@@ -276,7 +276,7 @@ const LoginPage = () => {
   return (
     <div className="auth-container">
       <div className="auth-form">
-        <h2>Panel de Control</h2>
+        <h2>Inicio de Sesion</h2>
         <p>Por favor, inicie sesión para continuar.</p>
         <form onSubmit={handleSubmit}>
           <input
@@ -417,7 +417,7 @@ function Dashboard() {
       )}
 
       <header className="app-header">
-        <h1>Panel Principal</h1>
+        <h1>Rustiko</h1>
         <div className="user-info">
           <span>Hola, {user.username}</span>
           <button onClick={logout} className="logout-btn" title="Cerrar Sesión">
