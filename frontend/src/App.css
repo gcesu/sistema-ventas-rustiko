@@ -682,3 +682,89 @@ body {
   text-align: center;
   font-size: 15px;
 }
+
+/* --- ESTILOS PARA VENTAS CON CANTIDAD --- */
+.venta-item-row input.input-cantidad {
+  width: 70px; /* Ancho para la cantidad */
+  flex-shrink: 0;
+}
+.venta-item-row input.input-precio {
+  width: 110px; /* Ancho para el precio */
+  flex-shrink: 0;
+}
+
+/* --- ESTILOS PARA MODAL DE DETALLE DE VENTA --- */
+.venta-detail-list li.venta-detail-header {
+  font-weight: bold;
+  color: #495057;
+  border-bottom: 2px solid #dee2e6;
+}
+.venta-detail-list li span {
+  flex-basis: 25%;
+  text-align: right;
+}
+.venta-detail-list li span.item-desc {
+  flex-grow: 1;
+  text-align: left;
+}
+
+/* --- INICIO: Estilos para Responsividad Móvil --- */
+
+/* Estas reglas se aplicarán solo en pantallas con un ancho máximo de 768px (tablets y móviles) */
+@media (max-width: 768px) {
+  /* Hacemos que el contenedor principal tenga menos padding en móviles */
+  .app-container {
+    padding: 16px;
+  }
+
+  /* Reducimos el tamaño del título principal */
+  .app-header h1 {
+    font-size: 24px;
+  }
+
+  /* Ajustamos el padding del contenido principal */
+  .app-main,
+  .detail-view {
+    padding: 16px;
+  }
+
+  /* Las tarjetas de resumen se adaptarán mejor */
+  .summary-cards {
+    grid-template-columns: 1fr 1fr; /* Forzamos a 2 columnas como máximo */
+  }
+
+  /* Apila los botones de "Registrar Venta/Abono" uno sobre otro */
+  .detail-actions {
+    flex-direction: column; /* Apila los botones verticalmente */
+    align-items: stretch; /* Hace que los botones ocupen todo el ancho */
+    gap: 12px;
+  }
+
+  .detail-actions .action-btn {
+    justify-content: center; /* Centra el texto y el icono del botón */
+  }
+
+  /* La clave: Las columnas de historiales y reportes se ponen una encima de la otra */
+  .history-columns {
+    grid-template-columns: 1fr; /* Cambia de 2 columnas a 1 */
+    gap: 40px; /* Aumenta el espacio vertical entre las secciones */
+  }
+}
+
+/* Ajustes para pantallas muy pequeñas (móviles pequeños) */
+@media (max-width: 480px) {
+  /* Forzamos las tarjetas de resumen a una sola columna */
+  .summary-cards {
+    grid-template-columns: 1fr;
+  }
+
+  /* Ajustes de fuente para mejor lectura */
+  .cliente-header h2 {
+    font-size: 24px;
+  }
+  .summary-card p {
+    font-size: 22px;
+  }
+}
+
+/* --- FIN: Estilos para Responsividad Móvil --- */

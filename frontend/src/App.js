@@ -206,7 +206,6 @@ const TrashIcon = () => (
 function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-
   useEffect(() => {
     const checkUserSession = async () => {
       try {
@@ -214,9 +213,7 @@ function App() {
           credentials: "include",
         });
         const data = await response.json();
-        if (data.isLoggedIn) {
-          setUser(data.user);
-        }
+        if (data.isLoggedIn) setUser(data.user);
       } catch (error) {
         console.error("No se pudo verificar la sesión", error);
       } finally {
@@ -225,7 +222,6 @@ function App() {
     };
     checkUserSession();
   }, []);
-
   const authContextValue = {
     user,
     login: (userData) => setUser(userData),
@@ -234,11 +230,8 @@ function App() {
       setUser(null);
     },
   };
-
-  if (authLoading) {
+  if (authLoading)
     return <div className="loading-screen">Cargando aplicación...</div>;
-  }
-
   return (
     <AuthContext.Provider value={authContextValue}>
       <div className="app-container">
@@ -252,7 +245,6 @@ function App() {
 const LoginPage = () => {
   const { login } = useContext(AuthContext);
   const [error, setError] = useState("");
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -272,7 +264,6 @@ const LoginPage = () => {
       setError(err.message);
     }
   };
-
   return (
     <div className="auth-container">
       <div className="auth-form">
@@ -301,7 +292,7 @@ const LoginPage = () => {
   );
 };
 
-// --- COMPONENTE #3: PANEL PRINCIPAL (DASHBOARD) ---
+// --- COMPONENTE #3: PANEL PRINCIPAL ---
 function Dashboard() {
   const { user, logout } = useContext(AuthContext);
   const [clientes, setClientes] = useState([]);
@@ -337,6 +328,12 @@ function Dashboard() {
       setIsLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "clientes") {
+      fetchClientes(searchTerm);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === "clientes") {
@@ -400,7 +397,7 @@ function Dashboard() {
   }
 
   return (
-    <>
+    <div className="app-container">
       {isClientModalOpen && (
         <ClientModal
           onSave={handleSaveClient}
@@ -415,7 +412,6 @@ function Dashboard() {
           message="¿Seguro que quieres eliminar este cliente?"
         />
       )}
-
       <header className="app-header">
         <h1>Rustiko</h1>
         <div className="user-info">
@@ -425,7 +421,6 @@ function Dashboard() {
           </button>
         </div>
       </header>
-
       <nav className="app-nav">
         <button
           className={`nav-btn ${activeTab === "clientes" ? "active" : ""}`}
@@ -440,7 +435,6 @@ function Dashboard() {
           <ChartIcon /> Reportes
         </button>
       </nav>
-
       <main className="app-main">
         {activeTab === "clientes" && (
           <>
@@ -462,9 +456,11 @@ function Dashboard() {
               </button>
             </div>
             <div className="content-area">
-              {isLoading && <p>Cargando...</p>}
-              {error && <p className="error-message">{error}</p>}
-              {!isLoading && !error && (
+              {isLoading ? (
+                <p>Cargando...</p>
+              ) : error ? (
+                <p className="error-message">{error}</p>
+              ) : (
                 <div className="clientes-grid">
                   {clientes.length > 0 ? (
                     clientes.map((c) => (
@@ -490,7 +486,7 @@ function Dashboard() {
         )}
         {activeTab === "reportes" && <ReportesView />}
       </main>
-    </>
+    </div>
   );
 }
 
@@ -516,7 +512,7 @@ const VentaDetailModal = ({ ventaId, onClose }) => {
     fetchDetalles();
   }, [ventaId]);
   const total = detalles.reduce(
-    (sum, item) => sum + parseFloat(item.precio),
+    (sum, item) => sum + parseFloat(item.precio_total),
     0
   );
   return (
@@ -527,14 +523,22 @@ const VentaDetailModal = ({ ventaId, onClose }) => {
           <p>Cargando...</p>
         ) : (
           <ul className="venta-detail-list">
+            <li className="venta-detail-header">
+              <span>Producto</span>
+              <span>Cant.</span>
+              <span>P/U</span>
+              <span>Total</span>
+            </li>
             {detalles.map((item) => (
               <li key={item.id}>
-                <span>{item.producto_descripcion}</span>
-                <span>{formatCurrency(item.precio)}</span>
+                <span className="item-desc">{item.producto_descripcion}</span>
+                <span>{item.cantidad}</span>
+                <span>{formatCurrency(item.precio_unitario)}</span>
+                <span>{formatCurrency(item.precio_total)}</span>
               </li>
             ))}
             <li className="total-row">
-              <strong>Total:</strong>
+              <strong>Total General:</strong>
               <strong>{formatCurrency(total)}</strong>
             </li>
           </ul>
@@ -551,33 +555,45 @@ const VentaDetailModal = ({ ventaId, onClose }) => {
 const AddTransactionModal = ({ type, clienteId, onSave, onClose }) => {
   const isVenta = type === "venta";
   const [monto, setMonto] = useState("");
-  const [items, setItems] = useState([{ descripcion: "", precio: "" }]);
+  const [items, setItems] = useState([
+    { descripcion: "", cantidad: 1, precio: "" },
+  ]);
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
-    newItems[index][field] = value;
+    const item = newItems[index];
+    if ((field === "cantidad" || field === "precio") && parseFloat(value) < 0) {
+      value = "0";
+    }
+    item[field] = value;
     setItems(newItems);
   };
-  const handleAddItem = () => {
-    setItems([...items, { descripcion: "", precio: "" }]);
-  };
+  const handleAddItem = () =>
+    setItems([...items, { descripcion: "", cantidad: 1, precio: "" }]);
   const handleRemoveItem = (index) => {
-    if (items.length > 1) {
-      const newItems = items.filter((_, i) => i !== index);
-      setItems(newItems);
-    }
+    if (items.length > 1) setItems(items.filter((_, i) => i !== index));
   };
   const ventaTotal = useMemo(
-    () => items.reduce((sum, item) => sum + (parseFloat(item.precio) || 0), 0),
+    () =>
+      items.reduce(
+        (sum, item) =>
+          sum + (parseInt(item.cantidad) || 1) * (parseFloat(item.precio) || 0),
+        0
+      ),
     [items]
   );
   const handleSubmit = (e) => {
     e.preventDefault();
     if (isVenta) {
       const validItems = items.filter(
-        (item) => item.descripcion.trim() !== "" && parseFloat(item.precio) > 0
+        (item) =>
+          item.descripcion.trim() !== "" &&
+          parseInt(item.cantidad) > 0 &&
+          parseFloat(item.precio) >= 0
       );
       if (validItems.length === 0) {
-        alert("Agrega al menos un producto válido.");
+        alert(
+          "Agrega al menos un producto con descripción, cantidad y precio válidos."
+        );
         return;
       }
       onSave("venta", { cliente_id: clienteId, productos: validItems });
@@ -610,13 +626,25 @@ const AddTransactionModal = ({ type, clienteId, onSave, onClose }) => {
                   />
                   <input
                     type="number"
-                    placeholder="Precio"
+                    placeholder="Cant."
+                    value={item.cantidad}
+                    onChange={(e) =>
+                      handleItemChange(index, "cantidad", e.target.value)
+                    }
+                    required
+                    className="input-cantidad"
+                    min="1"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Precio Unitario"
                     step="0.01"
                     value={item.precio}
                     onChange={(e) =>
                       handleItemChange(index, "precio", e.target.value)
                     }
                     required
+                    className="input-precio"
                   />
                   {items.length > 1 && (
                     <button
@@ -797,6 +825,7 @@ const ClienteDetail = ({ cliente, onBack }) => {
     id: null,
   });
   const [viewingVentaId, setViewingVentaId] = useState(null);
+
   const fetchTransacciones = useCallback(async () => {
     try {
       const [ventasRes, abonosRes] = await Promise.all([
@@ -815,9 +844,11 @@ const ClienteDetail = ({ cliente, onBack }) => {
       console.error("Error fetching transactions:", error);
     }
   }, [cliente.id]);
+
   useEffect(() => {
     fetchTransacciones();
   }, [fetchTransacciones]);
+
   const handleSaveTransaction = async (type, data) => {
     try {
       const response = await fetch(`${API_URL}?action=${type}s`, {
@@ -833,8 +864,10 @@ const ClienteDetail = ({ cliente, onBack }) => {
       alert(error.message);
     }
   };
+
   const handleDeleteClick = (type, id) =>
     setConfirmModal({ isOpen: true, type: type, id: id });
+
   const confirmDelete = async () => {
     const { type, id } = confirmModal;
     if (!type || !id) return;
@@ -850,12 +883,14 @@ const ClienteDetail = ({ cliente, onBack }) => {
       setConfirmModal({ isOpen: false, type: null, id: null });
     }
   };
+
   const totalVentas = ventas.reduce(
     (sum, v) => sum + parseFloat(v.monto_total),
     0
   );
   const totalAbonos = abonos.reduce((sum, a) => sum + parseFloat(a.monto), 0);
   const saldo = totalVentas - totalAbonos;
+
   return (
     <div className="detail-view">
       {transactionModal.isOpen && (
@@ -881,6 +916,7 @@ const ClienteDetail = ({ cliente, onBack }) => {
           onClose={() => setViewingVentaId(null)}
         />
       )}
+
       <button onClick={onBack} className="back-btn">
         <BackIcon /> Volver a Clientes
       </button>
@@ -921,6 +957,7 @@ const ClienteDetail = ({ cliente, onBack }) => {
           <DollarIcon /> Registrar Venta
         </button>
       </div>
+
       <div className="history-columns">
         <div className="history-column">
           <h3>Historial de Ventas</h3>
@@ -1008,6 +1045,8 @@ const ReportesView = () => {
   const [reportData, setReportData] = useState({ ventas: [], abonos: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [viewingVentaId, setViewingVentaId] = useState(null);
+
   const fetchReporte = useCallback(async (date) => {
     setIsLoading(true);
     setError(null);
@@ -1027,9 +1066,11 @@ const ReportesView = () => {
       setIsLoading(false);
     }
   }, []);
+
   useEffect(() => {
     fetchReporte(selectedDate);
   }, [selectedDate, fetchReporte]);
+
   const totalVentas = reportData.ventas.reduce(
     (sum, v) => sum + parseFloat(v.monto_total),
     0
@@ -1039,8 +1080,15 @@ const ReportesView = () => {
     0
   );
   const granTotal = totalVentas + totalAbonos;
+
   return (
     <div className="report-view">
+      {viewingVentaId && (
+        <VentaDetailModal
+          ventaId={viewingVentaId}
+          onClose={() => setViewingVentaId(null)}
+        />
+      )}
       <div className="toolbar">
         <div className="report-date-picker">
           <label htmlFor="report-date">Seleccionar fecha: </label>
@@ -1078,7 +1126,11 @@ const ReportesView = () => {
               <ul>
                 {reportData.ventas.length > 0 ? (
                   reportData.ventas.map((v) => (
-                    <li key={`v-${v.id}`}>
+                    <li
+                      key={`v-${v.id}`}
+                      onClick={() => setViewingVentaId(v.id)}
+                      className="clickable-row"
+                    >
                       <div className="item-info">
                         <span>{v.descripcion}</span>
                         <small>Cliente: {v.nombre_completo}</small>
