@@ -5,16 +5,114 @@ import React, {
   useMemo,
   createContext,
   useContext,
+  useRef,
 } from "react";
 import "./App.css";
 
 // ------ CONTEXTO Y CONSTANTES ------
-const API_URL = "https://rustiko.mangodigitalcr.com/api.php";
+const API_URL = "https://rustiko.mangodigitalcr.com/api_beta.php";
 const AuthContext = createContext(null);
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("es-CR", { style: "currency", currency: "CRC" }).format(
     amount
   );
+const formatDateTime = (isoString) => {
+  const date = new Date(isoString);
+  const options = {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+    timeZone: "America/Costa_Rica",
+  };
+  return new Intl.DateTimeFormat("es-CR", options).format(date);
+};
+
+const getTodayLocal = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+// ------ CUSTOM HOOK: useFormattedInput ------
+const useFormattedInput = (initialRawValue = "", isCurrency = false) => {
+  const [displayValue, setDisplayValue] = useState(() => {
+    const numericValue = parseFloat(initialRawValue);
+    if (!isNaN(numericValue) && initialRawValue !== "") {
+      return isCurrency
+        ? numericValue.toLocaleString("es-CR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        : numericValue.toLocaleString("es-CR", { maximumFractionDigits: 2 });
+    }
+    return String(initialRawValue);
+  });
+
+  const cleanValueRef = useRef(initialRawValue);
+
+  useEffect(() => {
+    const numericInitialValue = parseFloat(initialRawValue);
+    if (String(initialRawValue) !== String(cleanValueRef.current)) {
+      if (!isNaN(numericInitialValue) && initialRawValue !== "") {
+        cleanValueRef.current = numericInitialValue;
+        setDisplayValue(
+          isCurrency
+            ? numericInitialValue.toLocaleString("es-CR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })
+            : numericInitialValue.toLocaleString("es-CR", {
+                maximumFractionDigits: 2,
+              })
+        );
+      } else {
+        cleanValueRef.current = String(initialRawValue);
+        setDisplayValue(String(initialRawValue));
+      }
+    }
+  }, [initialRawValue, isCurrency]);
+
+  const handleChange = useCallback(
+    (e) => {
+      const rawInput = e.target.value;
+      if (rawInput === "") {
+        cleanValueRef.current = "";
+        setDisplayValue("");
+        return;
+      }
+      const cleanedValueForParse = rawInput
+        .replace(/\s/g, "")
+        .replace(/\./g, "")
+        .replace(/,/g, ".");
+      const parsedNum = parseFloat(cleanedValueForParse);
+      if (isNaN(parsedNum)) {
+        cleanValueRef.current = "";
+        setDisplayValue(rawInput);
+        return;
+      }
+      cleanValueRef.current = parsedNum;
+      const parts = cleanedValueForParse.split(".");
+      let formattedDisplay = parsedNum.toLocaleString("es-CR", {
+        maximumFractionDigits: 0,
+      });
+      if (parts.length > 1) {
+        formattedDisplay += "," + parts[1];
+      } else if (isCurrency && rawInput.endsWith(",")) {
+        formattedDisplay += ",";
+      }
+      setDisplayValue(formattedDisplay);
+    },
+    [isCurrency]
+  );
+
+  return [cleanValueRef.current, displayValue, handleChange];
+};
 
 // ------ ICONOS ------
 const EditIcon = () => (
@@ -28,8 +126,9 @@ const EditIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    {" "}
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>{" "}
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>{" "}
   </svg>
 );
 const UserGroupIcon = () => (
@@ -43,10 +142,11 @@ const UserGroupIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-    <circle cx="9" cy="7" r="4"></circle>
-    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+    {" "}
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>{" "}
+    <circle cx="9" cy="7" r="4"></circle>{" "}
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>{" "}
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>{" "}
   </svg>
 );
 const ChartIcon = () => (
@@ -60,8 +160,8 @@ const ChartIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <path d="M3 3v18h18"></path>
-    <path d="m18 9-5 5-4-4-3 3"></path>
+    {" "}
+    <path d="M3 3v18h18"></path> <path d="m18 9-5 5-4-4-3 3"></path>{" "}
   </svg>
 );
 const SearchIcon = () => (
@@ -75,8 +175,9 @@ const SearchIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <circle cx="11" cy="11" r="8"></circle>
-    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    {" "}
+    <circle cx="11" cy="11" r="8"></circle>{" "}
+    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>{" "}
   </svg>
 );
 const UserPlusIcon = () => (
@@ -90,10 +191,11 @@ const UserPlusIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-    <circle cx="8.5" cy="7" r="4"></circle>
-    <line x1="20" y1="8" x2="20" y2="14"></line>
-    <line x1="17" y1="11" x2="23" y2="11"></line>
+    {" "}
+    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>{" "}
+    <circle cx="8.5" cy="7" r="4"></circle>{" "}
+    <line x1="20" y1="8" x2="20" y2="14"></line>{" "}
+    <line x1="17" y1="11" x2="23" y2="11"></line>{" "}
   </svg>
 );
 const PhoneIcon = () => (
@@ -107,7 +209,8 @@ const PhoneIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+    {" "}
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>{" "}
   </svg>
 );
 const PinIcon = () => (
@@ -121,8 +224,9 @@ const PinIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-    <circle cx="12" cy="10" r="3"></circle>
+    {" "}
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>{" "}
+    <circle cx="12" cy="10" r="3"></circle>{" "}
   </svg>
 );
 const LogoutIcon = () => (
@@ -136,9 +240,10 @@ const LogoutIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-    <polyline points="16 17 21 12 16 7"></polyline>
-    <line x1="21" y1="12" x2="9" y2="12"></line>
+    {" "}
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>{" "}
+    <polyline points="16 17 21 12 16 7"></polyline>{" "}
+    <line x1="21" y1="12" x2="9" y2="12"></line>{" "}
   </svg>
 );
 const BackIcon = () => (
@@ -152,7 +257,8 @@ const BackIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <polyline points="15 18 9 12 15 6"></polyline>
+    {" "}
+    <polyline points="15 18 9 12 15 6"></polyline>{" "}
   </svg>
 );
 const PlusSquareIcon = () => (
@@ -166,9 +272,10 @@ const PlusSquareIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-    <line x1="12" y1="8" x2="12" y2="16"></line>
-    <line x1="8" y1="12" x2="16" y2="12"></line>
+    {" "}
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>{" "}
+    <line x1="12" y1="8" x2="12" y2="16"></line>{" "}
+    <line x1="8" y1="12" x2="16" y2="12"></line>{" "}
   </svg>
 );
 const DollarIcon = () => (
@@ -182,8 +289,9 @@ const DollarIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <line x1="12" y1="1" x2="12" y2="23"></line>
-    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+    {" "}
+    <line x1="12" y1="1" x2="12" y2="23"></line>{" "}
+    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>{" "}
   </svg>
 );
 const TrashIcon = () => (
@@ -197,8 +305,9 @@ const TrashIcon = () => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <polyline points="3 6 5 6 21 6"></polyline>
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+    {" "}
+    <polyline points="3 6 5 6 21 6"></polyline>{" "}
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>{" "}
   </svg>
 );
 
@@ -491,6 +600,313 @@ function Dashboard() {
 }
 
 // --- RESTO DE COMPONENTES DE LA APLICACIÓN ---
+
+const ItemInput = React.memo(
+  ({ descripcion, cantidad, precio, index, handleItemChange }) => {
+    const [cantidadValue, cantidadDisplayValue, handleCantidadChangeLocal] =
+      useFormattedInput(cantidad);
+    const [precioValue, precioDisplayValue, handlePrecioChangeLocal] =
+      useFormattedInput(precio, true);
+
+    useEffect(() => {
+      if (String(cantidad) !== String(cantidadValue)) {
+        handleItemChange(index, "cantidad", cantidadValue);
+      }
+    }, [cantidadValue, index, handleItemChange, cantidad]);
+
+    useEffect(() => {
+      if (String(precio) !== String(precioValue)) {
+        handleItemChange(index, "precio", precioValue);
+      }
+    }, [precioValue, index, handleItemChange, precio]);
+
+    return (
+      <>
+        <input
+          type="text"
+          placeholder="Descripción del Producto"
+          value={descripcion}
+          onChange={(e) =>
+            handleItemChange(index, "descripcion", e.target.value)
+          }
+          required
+        />
+        <input
+          type="text"
+          placeholder="Cant."
+          value={cantidadDisplayValue}
+          onChange={handleCantidadChangeLocal}
+          required
+          className="input-cantidad"
+          inputMode="numeric"
+        />
+        <input
+          type="text"
+          placeholder="Precio Unitario"
+          value={precioDisplayValue}
+          onChange={handlePrecioChangeLocal}
+          required
+          className="input-precio"
+          inputMode="decimal"
+        />
+      </>
+    );
+  }
+);
+
+const AddTransactionModal = ({
+  type,
+  clienteId,
+  onSave,
+  onClose,
+  transactionToEdit = null,
+}) => {
+  const isVenta = type === "venta";
+  const [fecha, setFecha] = useState(getTodayLocal());
+  const [montoValue, montoDisplayValue, handleMontoChange] = useFormattedInput(
+    transactionToEdit && !isVenta ? transactionToEdit.monto : "",
+    true
+  );
+  const [items, setItems] = useState([]);
+  const [tipoPagoVenta, setTipoPagoVenta] = useState(
+    transactionToEdit && isVenta && transactionToEdit.tipo_pago
+      ? transactionToEdit.tipo_pago
+      : "credito"
+  );
+
+  useEffect(() => {
+    if (transactionToEdit) {
+      setFecha(transactionToEdit.fecha.slice(0, 10));
+    } else {
+      setFecha(getTodayLocal());
+    }
+
+    if (isVenta) {
+      if (transactionToEdit && transactionToEdit.detalles) {
+        setItems(
+          transactionToEdit.detalles.map((d) => ({
+            id: d.id,
+            descripcion: d.producto_descripcion,
+            cantidad: parseFloat(d.cantidad) || 0,
+            precio: parseFloat(d.precio_unitario) || 0,
+          }))
+        );
+      } else {
+        // --- MODIFICADO: El precio inicial ahora es un string vacío ---
+        setItems([
+          { tempId: Date.now(), descripcion: "", cantidad: 1, precio: "" },
+        ]);
+      }
+    }
+  }, [transactionToEdit, isVenta]);
+
+  const handleItemChange = useCallback((index, field, value) => {
+    setItems((prevItems) => {
+      const newItems = [...prevItems];
+      const itemToUpdate = { ...newItems[index] };
+      if (field === "cantidad") {
+        itemToUpdate[field] = Math.max(0, parseFloat(value) || 0);
+      } else if (field === "precio") {
+        itemToUpdate[field] = Math.max(0, parseFloat(value) || 0);
+      } else {
+        itemToUpdate[field] = value;
+      }
+      newItems[index] = itemToUpdate;
+      return newItems;
+    });
+  }, []);
+
+  const handleAddItem = useCallback(() => {
+    setItems((prevItems) => [
+      ...prevItems,
+      // --- MODIFICADO: El precio inicial para nuevos items también es un string vacío ---
+      { tempId: Date.now(), descripcion: "", cantidad: 1, precio: "" },
+    ]);
+  }, []);
+
+  const handleRemoveItem = useCallback((indexToRemove) => {
+    setItems((prevItems) =>
+      prevItems.filter((_, index) => index !== indexToRemove)
+    );
+  }, []);
+
+  const ventaTotal = useMemo(
+    () =>
+      items.reduce(
+        (sum, item) =>
+          sum +
+          (parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0),
+        0
+      ),
+    [items]
+  );
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    // --- MODIFICADO: Lógica para manejar la fecha y hora ---
+    let finalTimestamp = fecha; // Por defecto es 'YYYY-MM-DD'
+    if (transactionToEdit) {
+      // Si estamos editando, combina la nueva fecha con la hora original
+      const newDatePart = fecha;
+      const originalTimePart = transactionToEdit.fecha.slice(11); // Extrae 'HH:MM:SS'
+      finalTimestamp = `${newDatePart} ${originalTimePart}`;
+    }
+
+    if (isVenta) {
+      const validItems = items.filter(
+        (item) =>
+          item.descripcion.trim() !== "" &&
+          parseFloat(item.cantidad) > 0 &&
+          parseFloat(item.precio) >= 0
+      );
+      if (validItems.length === 0) {
+        alert(
+          "Agrega al menos un producto con descripción, cantidad y precio válidos."
+        );
+        return;
+      }
+      const dataToSave = {
+        cliente_id: clienteId,
+        productos: validItems,
+        tipo_pago: tipoPagoVenta,
+        fecha: finalTimestamp, // Se envía el timestamp correcto
+      };
+      if (transactionToEdit) {
+        dataToSave.id = transactionToEdit.id;
+      }
+      onSave("venta", dataToSave);
+    } else {
+      if (isNaN(montoValue) || montoValue <= 0) {
+        alert("Ingresa un monto válido.");
+        return;
+      }
+      const dataToSave = {
+        cliente_id: clienteId,
+        monto: montoValue,
+        fecha: finalTimestamp, // Se envía el timestamp correcto
+      };
+      if (transactionToEdit) {
+        dataToSave.id = transactionToEdit.id;
+      }
+      onSave("abono", dataToSave);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <h2>
+          {transactionToEdit
+            ? `Editar ${isVenta ? "Venta" : "Abono"}`
+            : isVenta
+            ? "Registrar Venta"
+            : "Registrar Abono"}
+        </h2>
+        <form onSubmit={handleSubmit} className="modal-form">
+          <div className="form-group">
+            <label
+              htmlFor="transaction-date"
+              style={{
+                fontWeight: 500,
+                color: "#495057",
+                marginBottom: "8px",
+                display: "block",
+              }}
+            >
+              Fecha
+            </label>
+            <input
+              type="date"
+              id="transaction-date"
+              value={fecha}
+              onChange={(e) => setFecha(e.target.value)}
+              required
+            />
+          </div>
+          {isVenta ? (
+            <>
+              <div className="tipo-pago-selector">
+                <label>Tipo de Pago:</label>
+                <div className="radio-group">
+                  <input
+                    type="radio"
+                    id="credito"
+                    name="tipo_pago"
+                    value="credito"
+                    checked={tipoPagoVenta === "credito"}
+                    onChange={() => setTipoPagoVenta("credito")}
+                  />
+                  <label htmlFor="credito">Crédito</label>
+                  <input
+                    type="radio"
+                    id="contado"
+                    name="tipo_pago"
+                    value="contado"
+                    checked={tipoPagoVenta === "contado"}
+                    onChange={() => setTipoPagoVenta("contado")}
+                  />
+                  <label htmlFor="contado">Contado</label>
+                </div>
+              </div>
+              <div className="venta-items-container">
+                {items.map((item, index) => (
+                  <div className="venta-item-row" key={item.id || item.tempId}>
+                    <ItemInput
+                      descripcion={item.descripcion}
+                      cantidad={item.cantidad}
+                      precio={item.precio}
+                      index={index}
+                      handleItemChange={handleItemChange}
+                    />
+                    {items.length > 1 && (
+                      <button
+                        type="button"
+                        className="remove-item-btn"
+                        onClick={() => handleRemoveItem(index)}
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="add-item-btn"
+                  onClick={handleAddItem}
+                >
+                  + Agregar Producto
+                </button>
+                <div className="venta-total">
+                  <strong>Total: {formatCurrency(ventaTotal)}</strong>
+                </div>
+              </div>
+            </>
+          ) : (
+            <input
+              type="text"
+              placeholder="Monto"
+              value={montoDisplayValue}
+              onChange={handleMontoChange}
+              required
+              className="input-monto"
+              inputMode="decimal"
+            />
+          )}
+          <div className="modal-actions">
+            <button type="button" className="btn-cancel" onClick={onClose}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-submit">
+              Guardar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const VentaDetailModal = ({ ventaId, onClose }) => {
   const [detalles, setDetalles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -532,9 +948,15 @@ const VentaDetailModal = ({ ventaId, onClose }) => {
             {detalles.map((item) => (
               <li key={item.id}>
                 <span className="item-desc">{item.producto_descripcion}</span>
-                <span>{item.cantidad}</span>
-                <span>{formatCurrency(item.precio_unitario)}</span>
-                <span>{formatCurrency(item.precio_total)}</span>
+                {/* --- INICIO DE CAMBIOS --- */}
+                <span data-label="Cant.">{item.cantidad}</span>
+                <span data-label="P/U">
+                  {formatCurrency(item.precio_unitario)}
+                </span>
+                <span data-label="Total">
+                  {formatCurrency(item.precio_total)}
+                </span>
+                {/* --- FIN DE CAMBIOS --- */}
               </li>
             ))}
             <li className="total-row">
@@ -552,145 +974,7 @@ const VentaDetailModal = ({ ventaId, onClose }) => {
     </div>
   );
 };
-const AddTransactionModal = ({ type, clienteId, onSave, onClose }) => {
-  const isVenta = type === "venta";
-  const [monto, setMonto] = useState("");
-  const [items, setItems] = useState([
-    { descripcion: "", cantidad: 1, precio: "" },
-  ]);
-  const handleItemChange = (index, field, value) => {
-    const newItems = [...items];
-    const item = newItems[index];
-    if ((field === "cantidad" || field === "precio") && parseFloat(value) < 0) {
-      value = "0";
-    }
-    item[field] = value;
-    setItems(newItems);
-  };
-  const handleAddItem = () =>
-    setItems([...items, { descripcion: "", cantidad: 1, precio: "" }]);
-  const handleRemoveItem = (index) => {
-    if (items.length > 1) setItems(items.filter((_, i) => i !== index));
-  };
-  const ventaTotal = useMemo(
-    () =>
-      items.reduce(
-        (sum, item) =>
-          sum + (parseInt(item.cantidad) || 1) * (parseFloat(item.precio) || 0),
-        0
-      ),
-    [items]
-  );
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (isVenta) {
-      const validItems = items.filter(
-        (item) =>
-          item.descripcion.trim() !== "" &&
-          parseInt(item.cantidad) > 0 &&
-          parseFloat(item.precio) >= 0
-      );
-      if (validItems.length === 0) {
-        alert(
-          "Agrega al menos un producto con descripción, cantidad y precio válidos."
-        );
-        return;
-      }
-      onSave("venta", { cliente_id: clienteId, productos: validItems });
-    } else {
-      const montoValue = parseFloat(monto);
-      if (isNaN(montoValue) || montoValue <= 0) {
-        alert("Ingresa un monto válido.");
-        return;
-      }
-      onSave("abono", { cliente_id: clienteId, monto: montoValue });
-    }
-  };
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h2>Registrar {isVenta ? "Venta" : "Abono"}</h2>
-        <form onSubmit={handleSubmit} className="modal-form">
-          {isVenta ? (
-            <div className="venta-items-container">
-              {items.map((item, index) => (
-                <div className="venta-item-row" key={index}>
-                  <input
-                    type="text"
-                    placeholder="Descripción del Producto"
-                    value={item.descripcion}
-                    onChange={(e) =>
-                      handleItemChange(index, "descripcion", e.target.value)
-                    }
-                    required
-                  />
-                  <input
-                    type="number"
-                    placeholder="Cant."
-                    value={item.cantidad}
-                    onChange={(e) =>
-                      handleItemChange(index, "cantidad", e.target.value)
-                    }
-                    required
-                    className="input-cantidad"
-                    min="1"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Precio Unitario"
-                    step="0.01"
-                    value={item.precio}
-                    onChange={(e) =>
-                      handleItemChange(index, "precio", e.target.value)
-                    }
-                    required
-                    className="input-precio"
-                  />
-                  {items.length > 1 && (
-                    <button
-                      type="button"
-                      className="remove-item-btn"
-                      onClick={() => handleRemoveItem(index)}
-                    >
-                      &times;
-                    </button>
-                  )}
-                </div>
-              ))}
-              <button
-                type="button"
-                className="add-item-btn"
-                onClick={handleAddItem}
-              >
-                + Agregar Producto
-              </button>
-              <div className="venta-total">
-                <strong>Total: {formatCurrency(ventaTotal)}</strong>
-              </div>
-            </div>
-          ) : (
-            <input
-              type="number"
-              placeholder="Monto"
-              value={monto}
-              onChange={(e) => setMonto(e.target.value)}
-              step="0.01"
-              required
-            />
-          )}
-          <div className="modal-actions">
-            <button type="button" className="btn-cancel" onClick={onClose}>
-              Cancelar
-            </button>
-            <button type="submit" className="btn-submit">
-              Guardar
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
+
 const ClientModal = ({ onSave, onClose, clientToEdit }) => {
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
@@ -757,6 +1041,7 @@ const ClientModal = ({ onSave, onClose, clientToEdit }) => {
     </div>
   );
 };
+
 const ConfirmDeleteModal = ({ onConfirm, onCancel, message }) => (
   <div className="modal-overlay">
     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -773,6 +1058,7 @@ const ConfirmDeleteModal = ({ onConfirm, onCancel, message }) => (
     </div>
   </div>
 );
+
 const ClienteCard = ({ cliente, onSelect, onDelete, onEdit }) => {
   const handleDelete = (e) => {
     e.stopPropagation();
@@ -812,6 +1098,7 @@ const ClienteCard = ({ cliente, onSelect, onDelete, onEdit }) => {
     </div>
   );
 };
+
 const ClienteDetail = ({ cliente, onBack }) => {
   const [ventas, setVentas] = useState([]);
   const [abonos, setAbonos] = useState([]);
@@ -825,6 +1112,7 @@ const ClienteDetail = ({ cliente, onBack }) => {
     id: null,
   });
   const [viewingVentaId, setViewingVentaId] = useState(null);
+  const [editingTransaction, setEditingTransaction] = useState(null);
 
   const fetchTransacciones = useCallback(async () => {
     try {
@@ -849,10 +1137,42 @@ const ClienteDetail = ({ cliente, onBack }) => {
     fetchTransacciones();
   }, [fetchTransacciones]);
 
-  const handleSaveTransaction = async (type, data) => {
+  const handleEditVenta = async (venta) => {
     try {
-      const response = await fetch(`${API_URL}?action=${type}s`, {
-        method: "POST",
+      const response = await fetch(
+        `${API_URL}?action=venta_detalle&venta_id=${venta.id}`,
+        { credentials: "include" }
+      );
+      if (!response.ok)
+        throw new Error(
+          "No se pudieron cargar los detalles de la venta para edición."
+        );
+      const detalles = await response.json();
+      setEditingTransaction({ ...venta, detalles, type: "venta" });
+      setTransactionModal({ isOpen: true, type: "venta" });
+    } catch (error) {
+      alert(error.message);
+      console.error("Error al cargar detalles de venta para edición:", error);
+    }
+  };
+
+  const handleEditAbono = (abono) => {
+    setEditingTransaction({ ...abono, type: "abono" });
+    setTransactionModal({ isOpen: true, type: "abono" });
+  };
+
+  const handleSaveTransaction = async (type, data) => {
+    let method = "POST";
+    let action = `${type}s`;
+
+    if (editingTransaction) {
+      method = "PUT";
+      data.id = editingTransaction.id;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}?action=${action}`, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
         credentials: "include",
@@ -860,6 +1180,7 @@ const ClienteDetail = ({ cliente, onBack }) => {
       if (!response.ok) throw new Error((await response.json()).message);
       fetchTransacciones();
       setTransactionModal({ isOpen: false, type: null });
+      setEditingTransaction(null);
     } catch (error) {
       alert(error.message);
     }
@@ -884,12 +1205,18 @@ const ClienteDetail = ({ cliente, onBack }) => {
     }
   };
 
-  const totalVentas = ventas.reduce(
+  const totalVentasCredito = ventas.reduce(
+    (sum, v) =>
+      sum + (v.tipo_pago === "credito" ? parseFloat(v.monto_total) : 0),
+    0
+  );
+  const totalTodasVentas = ventas.reduce(
     (sum, v) => sum + parseFloat(v.monto_total),
     0
   );
+
   const totalAbonos = abonos.reduce((sum, a) => sum + parseFloat(a.monto), 0);
-  const saldo = totalVentas - totalAbonos;
+  const saldo = totalVentasCredito - totalAbonos;
 
   return (
     <div className="detail-view">
@@ -898,7 +1225,11 @@ const ClienteDetail = ({ cliente, onBack }) => {
           type={transactionModal.type}
           clienteId={cliente.id}
           onSave={handleSaveTransaction}
-          onClose={() => setTransactionModal({ isOpen: false, type: null })}
+          onClose={() => {
+            setTransactionModal({ isOpen: false, type: null });
+            setEditingTransaction(null);
+          }}
+          transactionToEdit={editingTransaction}
         />
       )}
       {confirmModal.isOpen && (
@@ -931,8 +1262,8 @@ const ClienteDetail = ({ cliente, onBack }) => {
       </div>
       <div className="summary-cards">
         <div className="summary-card ventas">
-          <h4>Total Ventas</h4>
-          <p>{formatCurrency(totalVentas)}</p>
+          <h4>Total Ventas (Todas)</h4>
+          <p>{formatCurrency(totalTodasVentas)}</p>
         </div>
         <div className="summary-card abonos">
           <h4>Total Abonos</h4>
@@ -946,13 +1277,19 @@ const ClienteDetail = ({ cliente, onBack }) => {
       <div className="detail-actions">
         <button
           className="action-btn green"
-          onClick={() => setTransactionModal({ isOpen: true, type: "abono" })}
+          onClick={() => {
+            setEditingTransaction(null);
+            setTransactionModal({ isOpen: true, type: "abono" });
+          }}
         >
           <PlusSquareIcon /> Registrar Abono
         </button>
         <button
           className="action-btn red"
-          onClick={() => setTransactionModal({ isOpen: true, type: "venta" })}
+          onClick={() => {
+            setEditingTransaction(null);
+            setTransactionModal({ isOpen: true, type: "venta" });
+          }}
         >
           <DollarIcon /> Registrar Venta
         </button>
@@ -966,14 +1303,15 @@ const ClienteDetail = ({ cliente, onBack }) => {
               ventas.map((venta) => (
                 <li
                   key={venta.id}
-                  onClick={() => setViewingVentaId(venta.id)}
                   className="clickable-row"
+                  onClick={() => setViewingVentaId(venta.id)}
                 >
                   <div className="item-info">
-                    <span>{venta.descripcion}</span>
-                    <small>
-                      {new Date(venta.fecha).toLocaleDateString("es-CR")}
-                    </small>
+                    <span>
+                      Venta - {formatDateTime(venta.fecha)} (
+                      {venta.tipo_pago === "credito" ? "Crédito" : "Contado"})
+                    </span>
+                    <small></small>
                   </div>
                   <div className="item-action">
                     <span className="monto-venta">
@@ -982,9 +1320,20 @@ const ClienteDetail = ({ cliente, onBack }) => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        handleEditVenta(venta);
+                      }}
+                      className="edit-item-btn"
+                      title="Editar Venta"
+                    >
+                      <EditIcon />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
                         handleDeleteClick("venta", venta.id);
                       }}
                       className="delete-item-btn"
+                      title="Eliminar Venta"
                     >
                       <TrashIcon />
                     </button>
@@ -1003,10 +1352,8 @@ const ClienteDetail = ({ cliente, onBack }) => {
               abonos.map((abono) => (
                 <li key={abono.id}>
                   <div className="item-info">
-                    <span>Abono recibido</span>
-                    <small>
-                      {new Date(abono.fecha).toLocaleDateString("es-CR")}
-                    </small>
+                    <span>Abono - {formatDateTime(abono.fecha)}</span>
+                    <small></small>
                   </div>
                   <div className="item-action">
                     <span className="monto-abono">
@@ -1015,9 +1362,20 @@ const ClienteDetail = ({ cliente, onBack }) => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        handleEditAbono(abono);
+                      }}
+                      className="edit-item-btn"
+                      title="Editar Abono"
+                    >
+                      <EditIcon />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
                         handleDeleteClick("abono", abono.id);
                       }}
                       className="delete-item-btn"
+                      title="Eliminar Abono"
                     >
                       <TrashIcon />
                     </button>
@@ -1033,14 +1391,8 @@ const ClienteDetail = ({ cliente, onBack }) => {
     </div>
   );
 };
+
 const ReportesView = () => {
-  const getTodayLocal = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    const day = String(today.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
   const [selectedDate, setSelectedDate] = useState(getTodayLocal());
   const [reportData, setReportData] = useState({ ventas: [], abonos: [] });
   const [isLoading, setIsLoading] = useState(true);
@@ -1071,15 +1423,25 @@ const ReportesView = () => {
     fetchReporte(selectedDate);
   }, [selectedDate, fetchReporte]);
 
-  const totalVentas = reportData.ventas.reduce(
+  const totalVentasCreditoReporte = reportData.ventas.reduce(
+    (sum, v) =>
+      sum + (v.tipo_pago === "credito" ? parseFloat(v.monto_total) : 0),
+    0
+  );
+  const totalVentasContadoReporte = reportData.ventas.reduce(
+    (sum, v) =>
+      sum + (v.tipo_pago === "contado" ? parseFloat(v.monto_total) : 0),
+    0
+  );
+  const totalVentasTotalesReporte = reportData.ventas.reduce(
     (sum, v) => sum + parseFloat(v.monto_total),
     0
   );
-  const totalAbonos = reportData.abonos.reduce(
+  const totalAbonosReporte = reportData.abonos.reduce(
     (sum, a) => sum + parseFloat(a.monto),
     0
   );
-  const granTotal = totalVentas + totalAbonos;
+  const granTotalReporte = totalVentasTotalesReporte + totalAbonosReporte;
 
   return (
     <div className="report-view">
@@ -1108,16 +1470,24 @@ const ReportesView = () => {
         <>
           <div className="summary-cards">
             <div className="summary-card ventas">
-              <h4>Total Ventas</h4>
-              <p>{formatCurrency(totalVentas)}</p>
+              <h4>Ventas a Crédito</h4>
+              <p>{formatCurrency(totalVentasCreditoReporte)}</p>
             </div>
             <div className="summary-card abonos">
-              <h4>Total Abonos</h4>
-              <p>{formatCurrency(totalAbonos)}</p>
+              <h4>Ventas de Contado</h4>
+              <p>{formatCurrency(totalVentasContadoReporte)}</p>
             </div>
             <div className="summary-card total-reporte">
               <h4>Total del Día</h4>
-              <p>{formatCurrency(granTotal)}</p>
+              <p>{formatCurrency(granTotalReporte)}</p>
+            </div>
+            <div className="summary-card ventas">
+              <h4>Total Ventas (Todas)</h4>
+              <p>{formatCurrency(totalVentasTotalesReporte)}</p>
+            </div>
+            <div className="summary-card abonos">
+              <h4>Total Abonos</h4>
+              <p>{formatCurrency(totalAbonosReporte)}</p>
             </div>
           </div>
           <div className="history-columns">
@@ -1132,7 +1502,10 @@ const ReportesView = () => {
                       className="clickable-row"
                     >
                       <div className="item-info">
-                        <span>{v.descripcion}</span>
+                        <span>
+                          Venta - {formatDateTime(v.fecha)} (
+                          {v.tipo_pago === "credito" ? "Crédito" : "Contado"})
+                        </span>
                         <small>Cliente: {v.nombre_completo}</small>
                       </div>
                       <div className="item-action">
@@ -1154,7 +1527,7 @@ const ReportesView = () => {
                   reportData.abonos.map((a) => (
                     <li key={`a-${a.id}`}>
                       <div className="item-info">
-                        <span>Abono Recibido</span>
+                        <span>Abono - {formatDateTime(a.fecha)}</span>
                         <small>Cliente: {a.nombre_completo}</small>
                       </div>
                       <div className="item-action">
