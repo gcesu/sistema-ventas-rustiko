@@ -96,12 +96,14 @@ function deleteCliente($db, $id) {
 }
 function getTransacciones($db, $tabla, $cid) {
     if(!$cid){ http_response_code(400); echo json_encode([]); return; }
-    $sql = ($tabla==='ventas') ? "SELECT id, monto_total, descripcion, fecha FROM ventas WHERE cliente_id = :cid ORDER BY fecha DESC" : "SELECT id, monto, fecha FROM abonos WHERE cliente_id = :cid ORDER BY fecha DESC";
+    $sql = ($tabla==='ventas') ? "SELECT id, monto_total, descripcion, fecha, tipo_pago FROM ventas WHERE cliente_id = :cid ORDER BY fecha DESC" : "SELECT id, monto, fecha FROM abonos WHERE cliente_id = :cid ORDER BY fecha DESC";
     $stmt = $db->prepare($sql); $stmt->execute([':cid' => $cid]);
     echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
 }
+
+// --- MODIFICADO: addVenta para añadir hora actual ---
 function addVenta($db, $data) {
-    if (empty($data['cliente_id']) || empty($data['productos']) || !is_array($data['productos'])) { http_response_code(400); echo json_encode(["message" => "Datos de venta incompletos."]); return; }
+    if (empty($data['cliente_id']) || empty($data['productos']) || !is_array($data['productos']) || empty($data['fecha'])) { http_response_code(400); echo json_encode(["message" => "Datos de venta incompletos (requiere cliente, productos y fecha)."]); return; }
     $monto_total_general = 0;
     foreach ($data['productos'] as $producto) {
         if (!isset($producto['precio']) || !is_numeric($producto['precio']) || !isset($producto['cantidad']) || !is_numeric($producto['cantidad'])) {
@@ -110,10 +112,14 @@ function addVenta($db, $data) {
         $monto_total_general += (floatval($producto['cantidad']) * floatval($producto['precio']));
     }
     $descripcion_general = count($data['productos']) > 0 ? $data['productos'][0]['descripcion'] : 'Venta de varios productos';
+    $tipo_pago = isset($data['tipo_pago']) && in_array($data['tipo_pago'], ['credito', 'contado']) ? $data['tipo_pago'] : 'credito';
+    // Se combina la fecha del frontend con la hora actual del servidor
+    $fecha = $data['fecha'] . ' ' . date('H:i:s');
+
     $db->beginTransaction();
     try {
-        $stmtVenta = $db->prepare("INSERT INTO ventas (cliente_id, monto_total, descripcion) VALUES (:cid, :mt, :d)");
-        $stmtVenta->execute([':cid' => $data['cliente_id'], ':mt' => $monto_total_general, ':d' => $descripcion_general]);
+        $stmtVenta = $db->prepare("INSERT INTO ventas (cliente_id, monto_total, descripcion, tipo_pago, fecha) VALUES (:cid, :mt, :d, :tp, :f)");
+        $stmtVenta->execute([':cid' => $data['cliente_id'], ':mt' => $monto_total_general, ':d' => $descripcion_general, ':tp' => $tipo_pago, ':f' => $fecha]);
         $venta_id = $db->lastInsertId();
         $stmtDetalle = $db->prepare("INSERT INTO venta_detalles (venta_id, producto_descripcion, cantidad, precio_unitario, precio_total) VALUES (:vid, :pd, :cant, :pu, :pt)");
         foreach ($data['productos'] as $producto) {
@@ -126,25 +132,134 @@ function addVenta($db, $data) {
         http_response_code(201); echo json_encode(["message" => "Venta agregada exitosamente."]);
     } catch(Exception $e) { $db->rollBack(); http_response_code(500); echo json_encode(["message" => "Error al agregar la venta: " . $e->getMessage()]); }
 }
+
+function updateVenta($db, $data) {
+    if (empty($data['id']) || empty($data['cliente_id']) || empty($data['productos']) || !is_array($data['productos']) || empty($data['fecha'])) {
+        http_response_code(400);
+        echo json_encode(["message" => "Datos de venta incompletos para actualizar (requiere id, cliente, productos y fecha)."]);
+        return;
+    }
+
+    $venta_id = $data['id'];
+    $cliente_id = $data['cliente_id'];
+    // Para updates, el frontend enviará el timestamp completo (fecha + hora original)
+    $fecha = $data['fecha']; 
+    $monto_total_general = 0;
+
+    foreach ($data['productos'] as $producto) {
+        if (!isset($producto['precio']) || !is_numeric($producto['precio']) || !isset($producto['cantidad']) || !is_numeric($producto['cantidad'])) {
+            http_response_code(400);
+            echo json_encode(["message" => "Cada producto debe tener cantidad y precio válidos para la actualización."]);
+            return;
+        }
+        $monto_total_general += (floatval($producto['cantidad']) * floatval($producto['precio']));
+    }
+
+    $descripcion_general = count($data['productos']) > 0 ? $data['productos'][0]['descripcion'] : 'Venta actualizada';
+    $tipo_pago = isset($data['tipo_pago']) && in_array($data['tipo_pago'], ['credito', 'contado']) ? $data['tipo_pago'] : 'credito';
+
+    $db->beginTransaction();
+    try {
+        $stmtCheck = $db->prepare("SELECT id FROM ventas WHERE id = :id AND cliente_id = :cliente_id");
+        $stmtCheck->execute([':id' => $venta_id, ':cliente_id' => $cliente_id]);
+        if (!$stmtCheck->fetch()) {
+            $db->rollBack();
+            http_response_code(404);
+            echo json_encode(["message" => "Venta no encontrada o no pertenece a este cliente."]);
+            return;
+        }
+
+        $stmtDeleteDetails = $db->prepare("DELETE FROM venta_detalles WHERE venta_id = :venta_id");
+        $stmtDeleteDetails->execute([':venta_id' => $venta_id]);
+
+        $stmtInsertDetail = $db->prepare("INSERT INTO venta_detalles (venta_id, producto_descripcion, cantidad, precio_unitario, precio_total) VALUES (:vid, :pd, :cant, :pu, :pt)");
+        foreach ($data['productos'] as $producto) {
+            $precio_unitario = floatval($producto['precio']);
+            $cantidad = intval($producto['cantidad']);
+            $precio_total_linea = $cantidad * $precio_unitario;
+            $stmtInsertDetail->execute([':vid' => $venta_id, ':pd' => $producto['descripcion'], ':cant' => $cantidad, ':pu' => $precio_unitario, ':pt' => $precio_total_linea]);
+        }
+
+        $stmtUpdateVenta = $db->prepare("UPDATE ventas SET monto_total = :mt, descripcion = :d, tipo_pago = :tp, fecha = :f WHERE id = :id");
+        $stmtUpdateVenta->execute([':mt' => $monto_total_general, ':d' => $descripcion_general, ':tp' => $tipo_pago, ':f' => $fecha, ':id' => $venta_id]);
+
+        $db->commit();
+        http_response_code(200);
+        echo json_encode(["message" => "Venta actualizada exitosamente."]);
+    } catch(Exception $e) {
+        $db->rollBack();
+        http_response_code(500);
+        echo json_encode(["message" => "Error al actualizar la venta: " . $e->getMessage()]);
+    }
+}
+
 function getVentaDetalles($db, $venta_id) {
     if (empty($venta_id)) { http_response_code(400); echo json_encode(["message" => "ID de venta requerido."]); return; }
     $stmt = $db->prepare("SELECT id, producto_descripcion, cantidad, precio_unitario, precio_total FROM venta_detalles WHERE venta_id = :venta_id");
     $stmt->execute([':venta_id' => $venta_id]);
     echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
 }
+
+// --- MODIFICADO: addAbono para añadir hora actual ---
 function addAbono($db, $data) {
-    if (empty($data['cliente_id'])||!isset($data['monto'])) { http_response_code(400); echo json_encode(["message" => "Datos de abono incompletos."]); return; }
-    $stmt = $db->prepare("INSERT INTO abonos (cliente_id, monto) VALUES (:cid, :m)");
-    $stmt->execute([':cid' => $data['cliente_id'], ':m' => $data['monto']]);
+    if (empty($data['cliente_id']) || !isset($data['monto']) || empty($data['fecha'])) { http_response_code(400); echo json_encode(["message" => "Datos de abono incompletos (requiere cliente, monto y fecha)."]); return; }
+    // Se combina la fecha del frontend con la hora actual del servidor
+    $fecha = $data['fecha'] . ' ' . date('H:i:s');
+    $stmt = $db->prepare("INSERT INTO abonos (cliente_id, monto, fecha) VALUES (:cid, :m, :f)");
+    $stmt->execute([':cid' => $data['cliente_id'], ':m' => $data['monto'], ':f' => $fecha]);
     http_response_code(201); echo json_encode(["message" => "Abono agregado."]);
 }
+
+function updateAbono($db, $data) {
+    if (empty($data['id']) || empty($data['cliente_id']) || !isset($data['monto']) || !is_numeric($data['monto']) || empty($data['fecha'])) {
+        http_response_code(400);
+        echo json_encode(["message" => "Datos de abono incompletos o inválidos para actualizar."]);
+        return;
+    }
+
+    $abono_id = $data['id'];
+    $cliente_id = $data['cliente_id'];
+    $monto = floatval($data['monto']);
+    // Para updates, el frontend enviará el timestamp completo (fecha + hora original)
+    $fecha = $data['fecha']; 
+
+    try {
+        $stmtCheck = $db->prepare("SELECT id FROM abonos WHERE id = :id AND cliente_id = :cliente_id");
+        $stmtCheck->execute([':id' => $abono_id, ':cliente_id' => $cliente_id]);
+        if (!$stmtCheck->fetch()) {
+            http_response_code(404);
+            echo json_encode(["message" => "Abono no encontrado o no pertenece a este cliente."]);
+            return;
+        }
+
+        $stmtUpdate = $db->prepare("UPDATE abonos SET monto = :monto, fecha = :fecha WHERE id = :id");
+        $stmtUpdate->execute([':monto' => $monto, ':fecha' => $fecha, ':id' => $abono_id]);
+
+        if ($stmtUpdate->rowCount() > 0) {
+            http_response_code(200);
+            echo json_encode(["message" => "Abono actualizado exitosamente."]);
+        } else {
+            http_response_code(200);
+            echo json_encode(["message" => "Abono no encontrado o datos idénticos."]);
+        }
+    } catch(Exception $e) {
+        http_response_code(500);
+        echo json_encode(["message" => "Error al actualizar el abono: " . $e->getMessage()]);
+    }
+}
+
 function deleteTransaccion($db, $tabla, $id) {
     if (empty($id)) { http_response_code(400); echo json_encode(["message" => "ID requerido."]); return; }
     $stmt = $db->prepare("DELETE FROM {$tabla} WHERE id = :id"); $stmt->execute([':id' => $id]);
-    http_response_code(200); echo json_encode(["message" => "Registro eliminado."]);
+    if ($stmt->rowCount() > 0) {
+        http_response_code(200); echo json_encode(["message" => "Registro eliminado."]);
+    } else {
+        http_response_code(404); echo json_encode(["message" => "Registro no encontrado."]);
+    }
 }
+
 function getReportePorFecha($db, $date) {
-    $stmtVentas = $db->prepare("SELECT v.id, v.monto_total, v.descripcion, v.fecha, c.nombre_completo FROM ventas v JOIN clientes c ON v.cliente_id = c.id WHERE DATE(v.fecha) = :date ORDER BY v.fecha DESC");
+    $stmtVentas = $db->prepare("SELECT v.id, v.monto_total, v.descripcion, v.fecha, v.tipo_pago, c.nombre_completo FROM ventas v JOIN clientes c ON v.cliente_id = c.id WHERE DATE(v.fecha) = :date ORDER BY v.fecha DESC");
     $stmtVentas->execute([':date' => $date]);
     $stmtAbonos = $db->prepare("SELECT a.id, a.monto, a.fecha, c.nombre_completo FROM abonos a JOIN clientes c ON a.cliente_id = c.id WHERE DATE(a.fecha) = :date ORDER BY a.fecha DESC");
     $stmtAbonos->execute([':date' => $date]);
@@ -180,11 +295,13 @@ switch ($action) {
     case 'ventas':
         if ($method == 'GET') { getTransacciones($conn, 'ventas', isset($_GET['cliente_id']) ? $_GET['cliente_id'] : null); }
         elseif ($method == 'POST') { addVenta($conn, $input); }
+        elseif ($method == 'PUT') { updateVenta($conn, $input); }
         elseif ($method == 'DELETE') { deleteTransaccion($conn, 'ventas', isset($_GET['id']) ? $_GET['id'] : null); }
         break;
     case 'abonos':
         if ($method == 'GET') { getTransacciones($conn, 'abonos', isset($_GET['cliente_id']) ? $_GET['cliente_id'] : null); }
         elseif ($method == 'POST') { addAbono($conn, $input); }
+        elseif ($method == 'PUT') { updateAbono($conn, $input); }
         elseif ($method == 'DELETE') { deleteTransaccion($conn, 'abonos', isset($_GET['id']) ? $_GET['id'] : null); }
         break;
     default:
