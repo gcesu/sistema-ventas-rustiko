@@ -10,7 +10,7 @@ import React, {
 import "./App.css";
 
 // ------ CONTEXTO Y CONSTANTES ------
-const API_URL = "https://rustiko.mangodigitalcr.com/api.php";
+const API_URL = "https://rustiko.mangodigitalcr.com/api_beta.php";
 const AuthContext = createContext(null);
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("es-CR", { style: "currency", currency: "CRC" }).format(
@@ -968,7 +968,6 @@ const VentaDetailModal = ({ ventaId, onClose }) => {
   );
 };
 
-// --- NUEVO: Componente para el modal de detalles de abono ---
 const AbonoDetailModal = ({ details, onClose }) => {
   if (!details) {
     return null;
@@ -1147,8 +1146,6 @@ const ClienteDetail = ({ cliente, onBack }) => {
   });
   const [viewingVentaId, setViewingVentaId] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
-
-  // --- NUEVO: Estado y manejador para el modal de detalles de abono ---
   const [abonoDetails, setAbonoDetails] = useState(null);
 
   const fetchTransacciones = useCallback(async () => {
@@ -1198,7 +1195,6 @@ const ClienteDetail = ({ cliente, onBack }) => {
     setTransactionModal({ isOpen: true, type: "abono" });
   };
 
-  // --- NUEVO: Función para buscar y mostrar los detalles de un abono ---
   const handleViewAbonoDetails = async (abonoId) => {
     try {
       const response = await fetch(
@@ -1307,7 +1303,6 @@ const ClienteDetail = ({ cliente, onBack }) => {
           onClose={() => setViewingVentaId(null)}
         />
       )}
-      {/* --- NUEVO: Renderizado condicional del nuevo modal --- */}
       {abonoDetails && (
         <AbonoDetailModal
           details={abonoDetails}
@@ -1417,7 +1412,6 @@ const ClienteDetail = ({ cliente, onBack }) => {
           <ul>
             {abonos.length > 0 ? (
               abonos.map((abono) => (
-                // --- MODIFICADO: Se añade onClick y className para hacerlo interactivo ---
                 <li
                   key={abono.id}
                   className="clickable-row"
@@ -1464,12 +1458,15 @@ const ClienteDetail = ({ cliente, onBack }) => {
   );
 };
 
+// --- MODIFICADO: ReportesView ahora puede abrir el modal de detalles de abono ---
 const ReportesView = () => {
   const [selectedDate, setSelectedDate] = useState(getTodayLocal());
   const [reportData, setReportData] = useState({ ventas: [], abonos: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewingVentaId, setViewingVentaId] = useState(null);
+  // --- NUEVO: Estado para el modal de detalles de abono ---
+  const [abonoDetails, setAbonoDetails] = useState(null);
 
   const fetchReporte = useCallback(async (date) => {
     setIsLoading(true);
@@ -1494,6 +1491,29 @@ const ReportesView = () => {
   useEffect(() => {
     fetchReporte(selectedDate);
   }, [selectedDate, fetchReporte]);
+
+  // --- NUEVO: Función para buscar y mostrar los detalles de un abono ---
+  const handleViewAbonoDetails = async (abonoId) => {
+    try {
+      const response = await fetch(
+        `${API_URL}?action=get_abono_detalle&id=${abonoId}`,
+        {
+          credentials: "include",
+        }
+      );
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(
+          errData.message || "Error al cargar los detalles del abono."
+        );
+      }
+      const data = await response.json();
+      setAbonoDetails(data);
+    } catch (error) {
+      alert(error.message);
+      console.error("Error fetching abono details:", error);
+    }
+  };
 
   const totalVentasCreditoReporte = reportData.ventas.reduce(
     (sum, v) =>
@@ -1523,6 +1543,14 @@ const ReportesView = () => {
           onClose={() => setViewingVentaId(null)}
         />
       )}
+      {/* --- NUEVO: Renderizado condicional del nuevo modal --- */}
+      {abonoDetails && (
+        <AbonoDetailModal
+          details={abonoDetails}
+          onClose={() => setAbonoDetails(null)}
+        />
+      )}
+
       <div className="toolbar">
         <div className="report-date-picker">
           <label htmlFor="report-date">Seleccionar fecha: </label>
@@ -1597,7 +1625,12 @@ const ReportesView = () => {
               <ul>
                 {reportData.abonos.length > 0 ? (
                   reportData.abonos.map((a) => (
-                    <li key={`a-${a.id}`}>
+                    // --- MODIFICADO: Se añade onClick y className para hacerlo interactivo ---
+                    <li
+                      key={`a-${a.id}`}
+                      className="clickable-row"
+                      onClick={() => handleViewAbonoDetails(a.id)}
+                    >
                       <div className="item-info">
                         <span>Abono - {formatDateTime(a.fecha)}</span>
                         <small>Cliente: {a.nombre_completo}</small>
