@@ -411,9 +411,9 @@ body {
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   width: 100%;
-  max-width: 520px; /* Un poco más ancho para dar espacio */
+  max-width: 520px;
   animation: slideIn 0.4s ease-out;
-  box-sizing: border-box; /* Asegurar que el padding se incluya en el ancho */
+  box-sizing: border-box;
 }
 .modal-content h2 {
   margin-top: 0;
@@ -756,7 +756,7 @@ body {
   border-color: #86b7fe;
 }
 
-/* --- NUEVO: ESTILOS PARA MODAL DE DETALLE DE ABONO --- */
+/* --- ESTILOS PARA MODAL DE DETALLE DE ABONO --- */
 .abono-detail-content {
   margin-top: 1.5rem;
 }
@@ -786,6 +786,38 @@ body {
   padding-top: 1rem;
   font-size: 1.25rem;
   font-weight: 700;
+}
+
+/* --- ESTILOS PARA CONTROLES DE PAGINACIÓN --- */
+.pagination-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+  margin-top: 1rem;
+  border-top: 1px solid #e9ecef;
+}
+.pagination-controls button {
+  background-color: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.pagination-controls button:hover:not(:disabled) {
+  background-color: #0b5ed7;
+}
+.pagination-controls button:disabled {
+  background-color: #ced4da;
+  cursor: not-allowed;
+}
+.pagination-controls span {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #495057;
 }
 
 /*
@@ -819,6 +851,21 @@ body {
   .history-columns {
     grid-template-columns: 1fr;
     gap: 40px;
+  }
+
+  /* --- MODIFICADO: Ajustes para toolbar y cuadrícula de clientes en móvil --- */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .add-btn {
+    justify-content: center;
+  }
+
+  .clientes-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
   }
 
   .delete-item-btn,
@@ -888,3 +935,39 @@ body {
 }
 
 /* --- FIN: ESTILOS PARA RESPONSIVIDAD --- */
+
+/* --- NUEVO: ESTILOS PARA CONTROLES DE PAGINACIÓN --- */
+.pagination-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+  margin-top: 1rem;
+  border-top: 1px solid #e9ecef;
+}
+
+.pagination-controls button {
+  background-color: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.pagination-controls button:hover:not(:disabled) {
+  background-color: #0b5ed7;
+}
+
+.pagination-controls button:disabled {
+  background-color: #ced4da;
+  cursor: not-allowed;
+}
+
+.pagination-controls span {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #495057;
+}

@@ -351,7 +351,7 @@ function App() {
 }
 
 // --- COMPONENTE #2: PÁGINA DE INICIO DE SESIÓN ---
-const LoginPage = () => {
+const LoginPage = ({ onLogin }) => {
   const { login } = useContext(AuthContext);
   const [error, setError] = useState("");
   const handleSubmit = async (e) => {
@@ -402,9 +402,10 @@ const LoginPage = () => {
 };
 
 // --- COMPONENTE #3: PANEL PRINCIPAL ---
-function Dashboard() {
+const Dashboard = () => {
   const { user, logout } = useContext(AuthContext);
-  const [clientes, setClientes] = useState([]);
+  const [clientes, setClientes] = useState({ items: [], totalPages: 0 });
+  const [clientesPage, setClientesPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedCliente, setSelectedCliente] = useState(null);
@@ -417,22 +418,24 @@ function Dashboard() {
   });
   const [searchTerm, setSearchTerm] = useState("");
 
-  const fetchClientes = useCallback(async (searchQuery) => {
+  const fetchClientes = useCallback(async (page, searchQuery) => {
     setIsLoading(true);
     setError(null);
     try {
-      let url = `${API_URL}?action=clientes`;
-      if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+      let url = `${API_URL}?action=clientes&page=${page}&limit=6`;
+      if (searchQuery) {
+        url += `&search=${encodeURIComponent(searchQuery)}`;
+      }
       const response = await fetch(url, { credentials: "include" });
       if (!response.ok)
         throw new Error(
           (await response.json()).message || "Error al cargar clientes"
         );
       const data = await response.json();
-      setClientes(Array.isArray(data) ? data : []);
+      setClientes(data);
     } catch (err) {
       setError(err.message);
-      setClientes([]);
+      setClientes({ items: [], totalPages: 0 });
     } finally {
       setIsLoading(false);
     }
@@ -440,16 +443,21 @@ function Dashboard() {
 
   useEffect(() => {
     if (activeTab === "clientes") {
-      fetchClientes(searchTerm);
+      setClientesPage(1);
     }
-  }, [activeTab]);
+  }, [searchTerm, activeTab]);
 
   useEffect(() => {
     if (activeTab === "clientes") {
-      const timerId = setTimeout(() => fetchClientes(searchTerm), 300);
-      return () => clearTimeout(timerId);
+      const handler = setTimeout(() => {
+        fetchClientes(clientesPage, searchTerm);
+      }, 300);
+
+      return () => {
+        clearTimeout(handler);
+      };
     }
-  }, [searchTerm, activeTab, fetchClientes]);
+  }, [clientesPage, searchTerm, activeTab, fetchClientes]);
 
   const handleClientModalOpen = (client = null) => {
     setEditingClient(client);
@@ -471,7 +479,7 @@ function Dashboard() {
         credentials: "include",
       });
       if (!response.ok) throw new Error((await response.json()).message);
-      fetchClientes(searchTerm);
+      fetchClientes(1, "");
       handleClientModalClose();
     } catch (err) {
       alert(err.message);
@@ -488,7 +496,7 @@ function Dashboard() {
         { method: "DELETE", credentials: "include" }
       );
       if (!response.ok) throw new Error((await response.json()).message);
-      fetchClientes(searchTerm);
+      fetchClientes(clientesPage, searchTerm);
     } catch (err) {
       alert(err.message);
     } finally {
@@ -500,7 +508,10 @@ function Dashboard() {
     return (
       <ClienteDetail
         cliente={selectedCliente}
-        onBack={() => setSelectedCliente(null)}
+        onBack={() => {
+          setSelectedCliente(null);
+          fetchClientes(clientesPage, searchTerm);
+        }}
       />
     );
   }
@@ -570,25 +581,32 @@ function Dashboard() {
               ) : error ? (
                 <p className="error-message">{error}</p>
               ) : (
-                <div className="clientes-grid">
-                  {clientes.length > 0 ? (
-                    clientes.map((c) => (
-                      <ClienteCard
-                        key={c.id}
-                        cliente={c}
-                        onSelect={setSelectedCliente}
-                        onDelete={handleDeleteRequest}
-                        onEdit={handleClientModalOpen}
-                      />
-                    ))
-                  ) : (
-                    <p>
-                      {searchTerm
-                        ? "No se encontraron clientes."
-                        : "No hay clientes registrados."}
-                    </p>
-                  )}
-                </div>
+                <>
+                  <div className="clientes-grid">
+                    {clientes.items.length > 0 ? (
+                      clientes.items.map((c) => (
+                        <ClienteCard
+                          key={c.id}
+                          cliente={c}
+                          onSelect={setSelectedCliente}
+                          onDelete={handleDeleteRequest}
+                          onEdit={handleClientModalOpen}
+                        />
+                      ))
+                    ) : (
+                      <p>
+                        {searchTerm
+                          ? "No se encontraron clientes."
+                          : "No hay clientes registrados."}
+                      </p>
+                    )}
+                  </div>
+                  <PaginationControls
+                    currentPage={clientesPage}
+                    totalPages={clientes.totalPages}
+                    onPageChange={setClientesPage}
+                  />
+                </>
               )}
             </div>
           </>
@@ -597,9 +615,34 @@ function Dashboard() {
       </main>
     </div>
   );
-}
+};
 
 // --- RESTO DE COMPONENTES DE LA APLICACIÓN ---
+
+const PaginationControls = ({ currentPage, totalPages, onPageChange }) => {
+  if (totalPages <= 1) {
+    return null;
+  }
+  return (
+    <div className="pagination-controls">
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+      >
+        Anterior
+      </button>
+      <span>
+        Página {currentPage} de {totalPages}
+      </span>
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+      >
+        Siguiente
+      </button>
+    </div>
+  );
+};
 
 const ItemInput = React.memo(
   ({ descripcion, cantidad, precio, index, handleItemChange }) => {
@@ -972,7 +1015,6 @@ const AbonoDetailModal = ({ details, onClose }) => {
   if (!details) {
     return null;
   }
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -1133,8 +1175,16 @@ const ClienteCard = ({ cliente, onSelect, onDelete, onEdit }) => {
 };
 
 const ClienteDetail = ({ cliente, onBack }) => {
-  const [ventas, setVentas] = useState([]);
-  const [abonos, setAbonos] = useState([]);
+  const [ventas, setVentas] = useState({ items: [], totalPages: 0 });
+  const [abonos, setAbonos] = useState({ items: [], totalPages: 0 });
+  const [ventasPage, setVentasPage] = useState(1);
+  const [abonosPage, setAbonosPage] = useState(1);
+  const [saldos, setSaldos] = useState({
+    total_todas_ventas: 0,
+    total_abonos: 0,
+    saldo_pendiente: 0,
+  });
+
   const [transactionModal, setTransactionModal] = useState({
     isOpen: false,
     type: null,
@@ -1148,24 +1198,45 @@ const ClienteDetail = ({ cliente, onBack }) => {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [abonoDetails, setAbonoDetails] = useState(null);
 
+  const RPP = 5;
+
   const fetchTransacciones = useCallback(async () => {
     try {
       const [ventasRes, abonosRes] = await Promise.all([
-        fetch(`${API_URL}?action=ventas&cliente_id=${cliente.id}`, {
-          credentials: "include",
-        }),
-        fetch(`${API_URL}?action=abonos&cliente_id=${cliente.id}`, {
-          credentials: "include",
-        }),
+        fetch(
+          `${API_URL}?action=ventas&cliente_id=${cliente.id}&page=${ventasPage}&limit=${RPP}`,
+          { credentials: "include" }
+        ),
+        fetch(
+          `${API_URL}?action=abonos&cliente_id=${cliente.id}&page=${abonosPage}&limit=${RPP}`,
+          { credentials: "include" }
+        ),
       ]);
       const ventasData = await ventasRes.json();
       const abonosData = await abonosRes.json();
-      setVentas(Array.isArray(ventasData) ? ventasData : []);
-      setAbonos(Array.isArray(abonosData) ? abonosData : []);
+      setVentas(ventasData);
+      setAbonos(abonosData);
     } catch (error) {
       console.error("Error fetching transactions:", error);
     }
+  }, [cliente.id, ventasPage, abonosPage]);
+
+  const fetchSaldos = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `${API_URL}?action=get_cliente_saldos&cliente_id=${cliente.id}`,
+        { credentials: "include" }
+      );
+      const data = await response.json();
+      setSaldos(data);
+    } catch (error) {
+      console.error("Error fetching saldos:", error);
+    }
   }, [cliente.id]);
+
+  useEffect(() => {
+    fetchSaldos();
+  }, [fetchSaldos]);
 
   useEffect(() => {
     fetchTransacciones();
@@ -1234,7 +1305,13 @@ const ClienteDetail = ({ cliente, onBack }) => {
         credentials: "include",
       });
       if (!response.ok) throw new Error((await response.json()).message);
-      fetchTransacciones();
+
+      if (type === "venta") setVentasPage(1);
+      if (type === "abono") setAbonosPage(1);
+
+      await fetchTransacciones();
+      await fetchSaldos();
+
       setTransactionModal({ isOpen: false, type: null });
       setEditingTransaction(null);
     } catch (error) {
@@ -1253,26 +1330,14 @@ const ClienteDetail = ({ cliente, onBack }) => {
         method: "DELETE",
         credentials: "include",
       });
-      fetchTransacciones();
+      await fetchTransacciones();
+      await fetchSaldos();
     } catch (error) {
       alert(error.message);
     } finally {
       setConfirmModal({ isOpen: false, type: null, id: null });
     }
   };
-
-  const totalVentasCredito = ventas.reduce(
-    (sum, v) =>
-      sum + (v.tipo_pago === "credito" ? parseFloat(v.monto_total) : 0),
-    0
-  );
-  const totalTodasVentas = ventas.reduce(
-    (sum, v) => sum + parseFloat(v.monto_total),
-    0
-  );
-
-  const totalAbonos = abonos.reduce((sum, a) => sum + parseFloat(a.monto), 0);
-  const saldo = totalVentasCredito - totalAbonos;
 
   return (
     <div className="detail-view">
@@ -1322,18 +1387,19 @@ const ClienteDetail = ({ cliente, onBack }) => {
           <PinIcon /> {cliente.direccion || "No especificada"}
         </p>
       </div>
+
       <div className="summary-cards">
         <div className="summary-card ventas">
           <h4>Total Ventas (Todas)</h4>
-          <p>{formatCurrency(totalTodasVentas)}</p>
+          <p>{formatCurrency(saldos.total_todas_ventas)}</p>
         </div>
         <div className="summary-card abonos">
           <h4>Total Abonos</h4>
-          <p>{formatCurrency(totalAbonos)}</p>
+          <p>{formatCurrency(saldos.total_abonos)}</p>
         </div>
         <div className="summary-card saldo">
           <h4>Saldo Pendiente</h4>
-          <p>{formatCurrency(saldo)}</p>
+          <p>{formatCurrency(saldos.saldo_pendiente)}</p>
         </div>
       </div>
       <div className="detail-actions">
@@ -1361,8 +1427,8 @@ const ClienteDetail = ({ cliente, onBack }) => {
         <div className="history-column">
           <h3>Historial de Ventas</h3>
           <ul>
-            {ventas.length > 0 ? (
-              ventas.map((venta) => (
+            {ventas.items && ventas.items.length > 0 ? (
+              ventas.items.map((venta) => (
                 <li
                   key={venta.id}
                   className="clickable-row"
@@ -1375,6 +1441,7 @@ const ClienteDetail = ({ cliente, onBack }) => {
                     </span>
                     <small></small>
                   </div>
+                  {/* --- CÓDIGO RESTAURADO: Botones de acción --- */}
                   <div className="item-action">
                     <span className="monto-venta">
                       {formatCurrency(venta.monto_total)}
@@ -1406,12 +1473,17 @@ const ClienteDetail = ({ cliente, onBack }) => {
               <p className="empty-history">No hay ventas.</p>
             )}
           </ul>
+          <PaginationControls
+            currentPage={ventasPage}
+            totalPages={ventas.totalPages}
+            onPageChange={setVentasPage}
+          />
         </div>
         <div className="history-column">
           <h3>Historial de Abonos</h3>
           <ul>
-            {abonos.length > 0 ? (
-              abonos.map((abono) => (
+            {abonos.items && abonos.items.length > 0 ? (
+              abonos.items.map((abono) => (
                 <li
                   key={abono.id}
                   className="clickable-row"
@@ -1421,6 +1493,7 @@ const ClienteDetail = ({ cliente, onBack }) => {
                     <span>Abono - {formatDateTime(abono.fecha)}</span>
                     <small></small>
                   </div>
+                  {/* --- CÓDIGO RESTAURADO: Botones de acción --- */}
                   <div className="item-action">
                     <span className="monto-abono">
                       {formatCurrency(abono.monto)}
@@ -1452,20 +1525,23 @@ const ClienteDetail = ({ cliente, onBack }) => {
               <p className="empty-history">No hay abonos.</p>
             )}
           </ul>
+          <PaginationControls
+            currentPage={abonosPage}
+            totalPages={abonos.totalPages}
+            onPageChange={setAbonosPage}
+          />
         </div>
       </div>
     </div>
   );
 };
 
-// --- MODIFICADO: ReportesView ahora puede abrir el modal de detalles de abono ---
 const ReportesView = () => {
   const [selectedDate, setSelectedDate] = useState(getTodayLocal());
   const [reportData, setReportData] = useState({ ventas: [], abonos: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewingVentaId, setViewingVentaId] = useState(null);
-  // --- NUEVO: Estado para el modal de detalles de abono ---
   const [abonoDetails, setAbonoDetails] = useState(null);
 
   const fetchReporte = useCallback(async (date) => {
@@ -1492,7 +1568,6 @@ const ReportesView = () => {
     fetchReporte(selectedDate);
   }, [selectedDate, fetchReporte]);
 
-  // --- NUEVO: Función para buscar y mostrar los detalles de un abono ---
   const handleViewAbonoDetails = async (abonoId) => {
     try {
       const response = await fetch(
@@ -1515,25 +1590,22 @@ const ReportesView = () => {
     }
   };
 
+  // --- MODIFICADO: Cálculo de totales del reporte ---
   const totalVentasCreditoReporte = reportData.ventas.reduce(
     (sum, v) =>
-      sum + (v.tipo_pago === "credito" ? parseFloat(v.monto_total) : 0),
+      v.tipo_pago === "credito" ? sum + parseFloat(v.monto_total) : sum,
     0
   );
   const totalVentasContadoReporte = reportData.ventas.reduce(
     (sum, v) =>
-      sum + (v.tipo_pago === "contado" ? parseFloat(v.monto_total) : 0),
-    0
-  );
-  const totalVentasTotalesReporte = reportData.ventas.reduce(
-    (sum, v) => sum + parseFloat(v.monto_total),
+      v.tipo_pago === "contado" ? sum + parseFloat(v.monto_total) : sum,
     0
   );
   const totalAbonosReporte = reportData.abonos.reduce(
     (sum, a) => sum + parseFloat(a.monto),
     0
   );
-  const granTotalReporte = totalVentasTotalesReporte + totalAbonosReporte;
+  const totalIngresosDelDia = totalVentasContadoReporte + totalAbonosReporte;
 
   return (
     <div className="report-view">
@@ -1543,7 +1615,6 @@ const ReportesView = () => {
           onClose={() => setViewingVentaId(null)}
         />
       )}
-      {/* --- NUEVO: Renderizado condicional del nuevo modal --- */}
       {abonoDetails && (
         <AbonoDetailModal
           details={abonoDetails}
@@ -1568,6 +1639,7 @@ const ReportesView = () => {
         <p className="error-message">{error}</p>
       ) : (
         <>
+          {/* --- MODIFICADO: Tarjetas de resumen actualizadas --- */}
           <div className="summary-cards">
             <div className="summary-card ventas">
               <h4>Ventas a Crédito</h4>
@@ -1577,17 +1649,13 @@ const ReportesView = () => {
               <h4>Ventas de Contado</h4>
               <p>{formatCurrency(totalVentasContadoReporte)}</p>
             </div>
-            <div className="summary-card total-reporte">
-              <h4>Total del Día</h4>
-              <p>{formatCurrency(granTotalReporte)}</p>
-            </div>
-            <div className="summary-card ventas">
-              <h4>Total Ventas (Todas)</h4>
-              <p>{formatCurrency(totalVentasTotalesReporte)}</p>
-            </div>
-            <div className="summary-card abonos">
+            <div className="summary-card saldo">
               <h4>Total Abonos</h4>
               <p>{formatCurrency(totalAbonosReporte)}</p>
+            </div>
+            <div className="summary-card total-reporte">
+              <h4>Total Ingresos del Día</h4>
+              <p>{formatCurrency(totalIngresosDelDia)}</p>
             </div>
           </div>
           <div className="history-columns">
@@ -1625,7 +1693,6 @@ const ReportesView = () => {
               <ul>
                 {reportData.abonos.length > 0 ? (
                   reportData.abonos.map((a) => (
-                    // --- MODIFICADO: Se añade onClick y className para hacerlo interactivo ---
                     <li
                       key={`a-${a.id}`}
                       className="clickable-row"
