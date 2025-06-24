@@ -692,7 +692,6 @@ const AddTransactionModal = ({
           }))
         );
       } else {
-        // --- MODIFICADO: El precio inicial ahora es un string vacío ---
         setItems([
           { tempId: Date.now(), descripcion: "", cantidad: 1, precio: "" },
         ]);
@@ -719,7 +718,6 @@ const AddTransactionModal = ({
   const handleAddItem = useCallback(() => {
     setItems((prevItems) => [
       ...prevItems,
-      // --- MODIFICADO: El precio inicial para nuevos items también es un string vacío ---
       { tempId: Date.now(), descripcion: "", cantidad: 1, precio: "" },
     ]);
   }, []);
@@ -743,13 +741,10 @@ const AddTransactionModal = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    // --- MODIFICADO: Lógica para manejar la fecha y hora ---
-    let finalTimestamp = fecha; // Por defecto es 'YYYY-MM-DD'
+    let finalTimestamp = fecha;
     if (transactionToEdit) {
-      // Si estamos editando, combina la nueva fecha con la hora original
       const newDatePart = fecha;
-      const originalTimePart = transactionToEdit.fecha.slice(11); // Extrae 'HH:MM:SS'
+      const originalTimePart = transactionToEdit.fecha.slice(11);
       finalTimestamp = `${newDatePart} ${originalTimePart}`;
     }
 
@@ -770,7 +765,7 @@ const AddTransactionModal = ({
         cliente_id: clienteId,
         productos: validItems,
         tipo_pago: tipoPagoVenta,
-        fecha: finalTimestamp, // Se envía el timestamp correcto
+        fecha: finalTimestamp,
       };
       if (transactionToEdit) {
         dataToSave.id = transactionToEdit.id;
@@ -784,7 +779,7 @@ const AddTransactionModal = ({
       const dataToSave = {
         cliente_id: clienteId,
         monto: montoValue,
-        fecha: finalTimestamp, // Se envía el timestamp correcto
+        fecha: finalTimestamp,
       };
       if (transactionToEdit) {
         dataToSave.id = transactionToEdit.id;
@@ -948,7 +943,6 @@ const VentaDetailModal = ({ ventaId, onClose }) => {
             {detalles.map((item) => (
               <li key={item.id}>
                 <span className="item-desc">{item.producto_descripcion}</span>
-                {/* --- INICIO DE CAMBIOS --- */}
                 <span data-label="Cant.">{item.cantidad}</span>
                 <span data-label="P/U">
                   {formatCurrency(item.precio_unitario)}
@@ -956,7 +950,6 @@ const VentaDetailModal = ({ ventaId, onClose }) => {
                 <span data-label="Total">
                   {formatCurrency(item.precio_total)}
                 </span>
-                {/* --- FIN DE CAMBIOS --- */}
               </li>
             ))}
             <li className="total-row">
@@ -965,6 +958,47 @@ const VentaDetailModal = ({ ventaId, onClose }) => {
             </li>
           </ul>
         )}
+        <div className="modal-actions">
+          <button className="btn-submit" onClick={onClose}>
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- NUEVO: Componente para el modal de detalles de abono ---
+const AbonoDetailModal = ({ details, onClose }) => {
+  if (!details) {
+    return null;
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <h2>Detalles del Abono</h2>
+        <div className="abono-detail-content">
+          <p className="abono-detail-date">
+            <strong>Fecha:</strong> {formatDateTime(details.fecha)}
+          </p>
+          <ul className="abono-detail-list">
+            <li>
+              <span>Saldo Anterior</span>
+              <span>{formatCurrency(details.saldo_anterior)}</span>
+            </li>
+            <li>
+              <span>Monto del Abono</span>
+              <span className="monto-abono">
+                - {formatCurrency(details.monto_abono)}
+              </span>
+            </li>
+            <li className="abono-total-row">
+              <span>Saldo Nuevo</span>
+              <span>{formatCurrency(details.saldo_nuevo)}</span>
+            </li>
+          </ul>
+        </div>
         <div className="modal-actions">
           <button className="btn-submit" onClick={onClose}>
             Cerrar
@@ -1114,6 +1148,9 @@ const ClienteDetail = ({ cliente, onBack }) => {
   const [viewingVentaId, setViewingVentaId] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
 
+  // --- NUEVO: Estado y manejador para el modal de detalles de abono ---
+  const [abonoDetails, setAbonoDetails] = useState(null);
+
   const fetchTransacciones = useCallback(async () => {
     try {
       const [ventasRes, abonosRes] = await Promise.all([
@@ -1159,6 +1196,29 @@ const ClienteDetail = ({ cliente, onBack }) => {
   const handleEditAbono = (abono) => {
     setEditingTransaction({ ...abono, type: "abono" });
     setTransactionModal({ isOpen: true, type: "abono" });
+  };
+
+  // --- NUEVO: Función para buscar y mostrar los detalles de un abono ---
+  const handleViewAbonoDetails = async (abonoId) => {
+    try {
+      const response = await fetch(
+        `${API_URL}?action=get_abono_detalle&id=${abonoId}`,
+        {
+          credentials: "include",
+        }
+      );
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(
+          errData.message || "Error al cargar los detalles del abono."
+        );
+      }
+      const data = await response.json();
+      setAbonoDetails(data);
+    } catch (error) {
+      alert(error.message);
+      console.error("Error fetching abono details:", error);
+    }
   };
 
   const handleSaveTransaction = async (type, data) => {
@@ -1245,6 +1305,13 @@ const ClienteDetail = ({ cliente, onBack }) => {
         <VentaDetailModal
           ventaId={viewingVentaId}
           onClose={() => setViewingVentaId(null)}
+        />
+      )}
+      {/* --- NUEVO: Renderizado condicional del nuevo modal --- */}
+      {abonoDetails && (
+        <AbonoDetailModal
+          details={abonoDetails}
+          onClose={() => setAbonoDetails(null)}
         />
       )}
 
@@ -1350,7 +1417,12 @@ const ClienteDetail = ({ cliente, onBack }) => {
           <ul>
             {abonos.length > 0 ? (
               abonos.map((abono) => (
-                <li key={abono.id}>
+                // --- MODIFICADO: Se añade onClick y className para hacerlo interactivo ---
+                <li
+                  key={abono.id}
+                  className="clickable-row"
+                  onClick={() => handleViewAbonoDetails(abono.id)}
+                >
                   <div className="item-info">
                     <span>Abono - {formatDateTime(abono.fecha)}</span>
                     <small></small>

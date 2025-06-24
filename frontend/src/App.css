@@ -756,6 +756,38 @@ body {
   border-color: #86b7fe;
 }
 
+/* --- NUEVO: ESTILOS PARA MODAL DE DETALLE DE ABONO --- */
+.abono-detail-content {
+  margin-top: 1.5rem;
+}
+.abono-detail-content .abono-detail-date {
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+.abono-detail-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 1.1rem;
+}
+.abono-detail-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+}
+.abono-detail-list li span:last-child {
+  font-weight: 600;
+}
+.abono-detail-list li.abono-total-row {
+  border-top: 2px solid #343a40;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
 /*
 ================================================================
 --- INICIO: ESTILOS PARA RESPONSIVIDAD (MÓVILES Y TABLETS) ---
@@ -789,14 +821,13 @@ body {
     gap: 40px;
   }
 
-  /* --- NUEVO: Solución para botones de editar/eliminar siempre visibles en móvil --- */
   .delete-item-btn,
   .edit-item-btn {
     visibility: visible;
     opacity: 1;
-    background-color: #f1f3f5; /* Fondo sutil para indicar que son clicables */
+    background-color: #f1f3f5;
   }
-  .delete-item-btn:hover, /* Mantenemos los colores de hover para tablets con mouse */
+  .delete-item-btn:hover,
   .edit-item-btn:hover {
     opacity: 0.8;
   }
@@ -813,10 +844,9 @@ body {
     font-size: 22px;
   }
 
-  /* --- NUEVO: Solución para tabla de detalle de venta en móvil --- */
   .venta-detail-list li {
-    flex-wrap: wrap; /* Permite que los items pasen a la siguiente línea */
-    justify-content: flex-end; /* Alinea los items numéricos a la derecha */
+    flex-wrap: wrap;
+    justify-content: flex-end;
     padding-bottom: 1rem;
     margin-bottom: 1rem;
   }
@@ -827,7 +857,6 @@ body {
     margin-top: 0;
   }
 
-  /* La descripción del producto ocupa todo el ancho en la parte superior */
   .venta-detail-list li span.item-desc {
     flex-basis: 100%;
     text-align: left;
@@ -836,7 +865,6 @@ body {
     color: #212529;
   }
 
-  /* Los otros 3 items (cant, p/u, total) se distribuyen debajo */
   .venta-detail-list li span:not(.item-desc) {
     flex-basis: 33.33%;
     font-size: 0.9rem;
@@ -845,7 +873,6 @@ body {
     border-top: 1px solid #f1f3f5;
   }
 
-  /* Usamos pseudo-elementos para añadir etiquetas a los datos numéricos */
   .venta-detail-list li span:not(.item-desc)::before {
     content: attr(data-label);
     display: block;
@@ -855,7 +882,6 @@ body {
     margin-bottom: 0.25rem;
   }
 
-  /* Ocultamos la cabecera original en móvil ya que no se alinea */
   .venta-detail-list li.venta-detail-header {
     display: none;
   }
