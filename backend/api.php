@@ -64,16 +64,47 @@ function check_session() {
         http_response_code(200); echo json_encode(['isLoggedIn' => false]);
     }
 }
-function getClientes($db, $searchTerm = null) {
+
+function getClientes($db, $searchTerm, $page, $limit) {
+    $params = [];
+    $count_sql = "SELECT COUNT(id) FROM clientes";
+    $data_sql = "SELECT id, nombre_completo, telefono, direccion FROM clientes";
+
     if ($searchTerm && trim($searchTerm) !== '') {
-        $stmt = $db->prepare("SELECT id, nombre_completo, telefono, direccion FROM clientes WHERE nombre_completo LIKE :searchTerm OR telefono LIKE :searchTerm ORDER BY nombre_completo ASC");
-        $stmt->execute([':searchTerm' => '%' . $searchTerm . '%']);
-    } else {
-        $stmt = $db->prepare("SELECT id, nombre_completo, telefono, direccion FROM clientes ORDER BY nombre_completo ASC");
-        $stmt->execute();
+        $where_clause = " WHERE nombre_completo LIKE :searchTerm OR telefono LIKE :searchTerm";
+        $count_sql .= $where_clause;
+        $data_sql .= $where_clause;
+        $params[':searchTerm'] = '%' . $searchTerm . '%';
     }
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+
+    $count_stmt = $db->prepare($count_sql);
+    $count_stmt->execute($params);
+    $total_items = $count_stmt->fetchColumn();
+    $total_pages = $total_items > 0 ? ceil($total_items / $limit) : 0;
+
+    $offset = ($page - 1) * $limit;
+    $data_sql .= " ORDER BY nombre_completo ASC LIMIT :limit OFFSET :offset";
+    
+    $stmt = $db->prepare($data_sql);
+
+    foreach ($params as $key => &$val) {
+        $stmt->bindParam($key, $val);
+    }
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    
+    $stmt->execute();
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $response = [
+        'items' => $items,
+        'currentPage' => $page,
+        'totalPages' => $total_pages
+    ];
+
+    echo json_encode($response);
 }
+
 function addCliente($db, $data) {
     if (empty($data['nombre_completo'])||empty($data['telefono'])) { http_response_code(400); echo json_encode(["message" => "Nombre y teléfono requeridos."]); return; }
     $stmt = $db->prepare("INSERT INTO clientes (nombre_completo, telefono, direccion) VALUES (:n, :t, :d)");
@@ -94,11 +125,35 @@ function deleteCliente($db, $id) {
     if ($stmt->rowCount()>0) { http_response_code(200); echo json_encode(["message" => "Cliente eliminado."]); }
     else { http_response_code(404); echo json_encode(["message" => "Cliente no encontrado."]); }
 }
-function getTransacciones($db, $tabla, $cid) {
+
+function getTransacciones($db, $tabla, $cid, $page, $limit) {
     if(!$cid){ http_response_code(400); echo json_encode([]); return; }
-    $sql = ($tabla==='ventas') ? "SELECT id, monto_total, descripcion, fecha, tipo_pago FROM ventas WHERE cliente_id = :cid ORDER BY fecha DESC" : "SELECT id, monto, fecha FROM abonos WHERE cliente_id = :cid ORDER BY fecha DESC";
-    $stmt = $db->prepare($sql); $stmt->execute([':cid' => $cid]);
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+
+    $count_stmt = $db->prepare("SELECT COUNT(id) FROM {$tabla} WHERE cliente_id = :cid");
+    $count_stmt->execute([':cid' => $cid]);
+    $total_items = $count_stmt->fetchColumn();
+    $total_pages = $total_items > 0 ? ceil($total_items / $limit) : 0;
+
+    $offset = ($page - 1) * $limit;
+
+    $sql = ($tabla === 'ventas') 
+        ? "SELECT id, monto_total, descripcion, fecha, tipo_pago FROM ventas WHERE cliente_id = :cid ORDER BY fecha DESC, id DESC LIMIT :limit OFFSET :offset" 
+        : "SELECT id, monto, fecha FROM abonos WHERE cliente_id = :cid ORDER BY fecha DESC, id DESC LIMIT :limit OFFSET :offset";
+    
+    $stmt = $db->prepare($sql);
+    $stmt->bindValue(':cid', $cid, PDO::PARAM_INT);
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $response = [
+        'items' => $items,
+        'currentPage' => $page,
+        'totalPages' => $total_pages
+    ];
+
+    echo json_encode($response);
 }
 
 function addVenta($db, $data) {
@@ -229,31 +284,24 @@ function updateAbono($db, $data) {
     }
 }
 
-// --- NUEVA FUNCIÓN: getAbonoDetalle ---
 function getAbonoDetalle($db, $abono_id) {
     if (empty($abono_id)) {
         http_response_code(400);
         echo json_encode(["message" => "ID de abono requerido."]);
         return;
     }
-
     try {
-        // 1. Obtener la información del abono principal
         $stmtAbono = $db->prepare("SELECT cliente_id, monto, fecha FROM abonos WHERE id = :id");
         $stmtAbono->execute([':id' => $abono_id]);
         $abono = $stmtAbono->fetch(PDO::FETCH_ASSOC);
-
         if (!$abono) {
             http_response_code(404);
             echo json_encode(["message" => "Abono no encontrado."]);
             return;
         }
-
         $cliente_id = $abono['cliente_id'];
         $fecha_abono = $abono['fecha'];
         $monto_abono = $abono['monto'];
-
-        // 2. Calcular el total de ventas a crédito ANTES de este abono
         $stmtVentas = $db->prepare(
             "SELECT IFNULL(SUM(monto_total), 0) as total_ventas 
              FROM ventas 
@@ -261,8 +309,6 @@ function getAbonoDetalle($db, $abono_id) {
         );
         $stmtVentas->execute([':cid' => $cliente_id, ':fecha' => $fecha_abono]);
         $total_ventas_anteriores = $stmtVentas->fetchColumn();
-
-        // 3. Calcular el total de otros abonos ANTES de este abono
         $stmtOtrosAbonos = $db->prepare(
             "SELECT IFNULL(SUM(monto), 0) as total_abonos 
              FROM abonos 
@@ -270,25 +316,57 @@ function getAbonoDetalle($db, $abono_id) {
         );
         $stmtOtrosAbonos->execute([':cid' => $cliente_id, ':aid' => $abono_id, ':fecha' => $fecha_abono]);
         $total_abonos_anteriores = $stmtOtrosAbonos->fetchColumn();
-
-        // 4. Calcular saldos
         $saldo_anterior = floatval($total_ventas_anteriores) - floatval($total_abonos_anteriores);
         $saldo_nuevo = $saldo_anterior - floatval($monto_abono);
-
-        // 5. Devolver el resultado
         $response = [
             'fecha' => $fecha_abono,
             'monto_abono' => floatval($monto_abono),
             'saldo_anterior' => $saldo_anterior,
             'saldo_nuevo' => $saldo_nuevo
         ];
+        http_response_code(200);
+        echo json_encode($response);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(["message" => "Error al obtener detalles del abono: " . $e->getMessage()]);
+    }
+}
 
+// --- NUEVO: Función para obtener los totales de un cliente ---
+function getClienteSaldos($db, $cliente_id) {
+    if (empty($cliente_id)) {
+        http_response_code(400);
+        echo json_encode(["message" => "ID de cliente requerido."]);
+        return;
+    }
+
+    try {
+        $stmtTotalVentas = $db->prepare("SELECT IFNULL(SUM(monto_total), 0) FROM ventas WHERE cliente_id = :cid");
+        $stmtTotalVentas->execute([':cid' => $cliente_id]);
+        $total_todas_ventas = $stmtTotalVentas->fetchColumn();
+
+        $stmtVentasCredito = $db->prepare("SELECT IFNULL(SUM(monto_total), 0) FROM ventas WHERE cliente_id = :cid AND tipo_pago = 'credito'");
+        $stmtVentasCredito->execute([':cid' => $cliente_id]);
+        $total_ventas_credito = $stmtVentasCredito->fetchColumn();
+
+        $stmtAbonos = $db->prepare("SELECT IFNULL(SUM(monto), 0) FROM abonos WHERE cliente_id = :cid");
+        $stmtAbonos->execute([':cid' => $cliente_id]);
+        $total_abonos = $stmtAbonos->fetchColumn();
+
+        $saldo_pendiente = floatval($total_ventas_credito) - floatval($total_abonos);
+
+        $response = [
+            'total_todas_ventas' => floatval($total_todas_ventas),
+            'total_abonos' => floatval($total_abonos),
+            'saldo_pendiente' => $saldo_pendiente
+        ];
+        
         http_response_code(200);
         echo json_encode($response);
 
     } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(["message" => "Error al obtener detalles del abono: " . $e->getMessage()]);
+        echo json_encode(["message" => "Error al obtener los saldos del cliente: " . $e->getMessage()]);
     }
 }
 
@@ -326,10 +404,17 @@ if (!isset($_SESSION['user_id'])) {
 
 switch ($action) {
     case 'clientes':
-        if ($method === 'GET') { getClientes($conn, isset($_GET['search']) ? $_GET['search'] : null); }
+        if ($method === 'GET') {
+            $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+            $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 6;
+            getClientes($conn, isset($_GET['search']) ? $_GET['search'] : null, $page, $limit); 
+        }
         elseif ($method === 'POST') { addCliente($conn, $input); }
         elseif ($method === 'PUT') { updateCliente($conn, $input); }
         elseif ($method === 'DELETE') { deleteCliente($conn, isset($_GET['id']) ? $_GET['id'] : null); }
+        break;
+    case 'get_cliente_saldos':
+        if ($method === 'GET') { getClienteSaldos($conn, isset($_GET['cliente_id']) ? $_GET['cliente_id'] : null); }
         break;
     case 'reportes':
         if ($method === 'GET') { getReportePorFecha($conn, isset($_GET['date']) ? $_GET['date'] : date('Y-m-d')); }
@@ -337,21 +422,27 @@ switch ($action) {
     case 'venta_detalle':
         if ($method === 'GET') { getVentaDetalles($conn, isset($_GET['venta_id']) ? $_GET['venta_id'] : null); }
         break;
-    // --- NUEVO: Case para el detalle del abono ---
     case 'get_abono_detalle':
         if ($method === 'GET') { getAbonoDetalle($conn, isset($_GET['id']) ? $_GET['id'] : null); }
         break;
     case 'ventas':
-        if ($method == 'GET') { getTransacciones($conn, 'ventas', isset($_GET['cliente_id']) ? $_GET['cliente_id'] : null); }
-        elseif ($method == 'POST') { addVenta($conn, $input); }
-        elseif ($method == 'PUT') { updateVenta($conn, $input); }
-        elseif ($method == 'DELETE') { deleteTransaccion($conn, 'ventas', isset($_GET['id']) ? $_GET['id'] : null); }
-        break;
     case 'abonos':
-        if ($method == 'GET') { getTransacciones($conn, 'abonos', isset($_GET['cliente_id']) ? $_GET['cliente_id'] : null); }
-        elseif ($method == 'POST') { addAbono($conn, $input); }
-        elseif ($method == 'PUT') { updateAbono($conn, $input); }
-        elseif ($method == 'DELETE') { deleteTransaccion($conn, 'abonos', isset($_GET['id']) ? $_GET['id'] : null); }
+        if ($method == 'GET') {
+            $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+            $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 5;
+            getTransacciones($conn, $action, isset($_GET['cliente_id']) ? $_GET['cliente_id'] : null, $page, $limit);
+        }
+        elseif ($method == 'POST') { 
+            if ($action === 'ventas') addVenta($conn, $input);
+            else addAbono($conn, $input);
+        }
+        elseif ($method == 'PUT') { 
+            if ($action === 'ventas') updateVenta($conn, $input);
+            else updateAbono($conn, $input);
+        }
+        elseif ($method == 'DELETE') { 
+            deleteTransaccion($conn, $action, isset($_GET['id']) ? $_GET['id'] : null); 
+        }
         break;
     default:
         http_response_code(404); echo json_encode(["message" => "Acción no válida."]); break;
