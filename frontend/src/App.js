@@ -10,7 +10,7 @@ import React, {
 import "./App.css";
 
 // ------ CONTEXTO Y CONSTANTES ------
-const API_URL = "https://rustiko.mangodigitalcr.com/api.php";
+const API_URL = "https://rustiko.mangodigitalcr.com/api_beta.php";
 const AuthContext = createContext(null);
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("es-CR", { style: "currency", currency: "CRC" }).format(

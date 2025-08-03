@@ -542,6 +542,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 10px;
 }
 .venta-item-row {
   display: flex;
