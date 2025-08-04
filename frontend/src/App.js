@@ -673,6 +673,7 @@ const ItemInput = React.memo(
             handleItemChange(index, "descripcion", e.target.value)
           }
           required
+          className="input-descripcion"
         />
         <input
           type="text"
@@ -706,10 +707,14 @@ const AddTransactionModal = ({
 }) => {
   const isVenta = type === "venta";
   const [fecha, setFecha] = useState(getTodayLocal());
+  
+  // Hook para el monto del abono (no se usa en la venta)
   const [montoValue, montoDisplayValue, handleMontoChange] = useFormattedInput(
     transactionToEdit && !isVenta ? transactionToEdit.monto : "",
     true
   );
+
+  // Estado para los productos de la venta
   const [items, setItems] = useState([]);
   const [tipoPagoVenta, setTipoPagoVenta] = useState(
     transactionToEdit && isVenta && transactionToEdit.tipo_pago
@@ -735,6 +740,7 @@ const AddTransactionModal = ({
           }))
         );
       } else {
+        // Inicia con un item vacío si es una nueva venta
         setItems([
           { tempId: Date.now(), descripcion: "", cantidad: 1, precio: "" },
         ]);
@@ -746,9 +752,7 @@ const AddTransactionModal = ({
     setItems((prevItems) => {
       const newItems = [...prevItems];
       const itemToUpdate = { ...newItems[index] };
-      if (field === "cantidad") {
-        itemToUpdate[field] = Math.max(0, parseFloat(value) || 0);
-      } else if (field === "precio") {
+      if (field === "cantidad" || field === "precio") {
         itemToUpdate[field] = Math.max(0, parseFloat(value) || 0);
       } else {
         itemToUpdate[field] = value;
@@ -785,10 +789,10 @@ const AddTransactionModal = ({
   const handleSubmit = (e) => {
     e.preventDefault();
     let finalTimestamp = fecha;
-    if (transactionToEdit) {
-      const newDatePart = fecha;
-      const originalTimePart = transactionToEdit.fecha.slice(11);
-      finalTimestamp = `${newDatePart} ${originalTimePart}`;
+    if (transactionToEdit && transactionToEdit.fecha) {
+        const newDatePart = fecha;
+        const originalTimePart = transactionToEdit.fecha.slice(11);
+        finalTimestamp = `${newDatePart} ${originalTimePart}`;
     }
 
     if (isVenta) {
@@ -799,9 +803,7 @@ const AddTransactionModal = ({
           parseFloat(item.precio) >= 0
       );
       if (validItems.length === 0) {
-        alert(
-          "Agrega al menos un producto con descripción, cantidad y precio válidos."
-        );
+        alert("Agrega al menos un producto con descripción, cantidad y precio válidos.");
         return;
       }
       const dataToSave = {
@@ -887,6 +889,8 @@ const AddTransactionModal = ({
                   <label htmlFor="contado">Contado</label>
                 </div>
               </div>
+              
+              {/* Contenedor de productos con scroll */}
               <div className="venta-items-container">
                 {items.map((item, index) => (
                   <div className="venta-item-row" key={item.id || item.tempId}>
@@ -908,17 +912,16 @@ const AddTransactionModal = ({
                     )}
                   </div>
                 ))}
-                <button
-                  type="button"
-                  className="add-item-btn"
-                  onClick={handleAddItem}
-                >
-                  + Agregar Producto
-                </button>
-                <div className="venta-total">
-                  <strong>Total: {formatCurrency(ventaTotal)}</strong>
-                </div>
               </div>
+
+              {/* Botón para agregar más productos */}
+              <button
+                type="button"
+                className="add-item-btn"
+                onClick={handleAddItem}
+              >
+                + Agregar Producto
+              </button>
             </>
           ) : (
             <input
@@ -931,13 +934,22 @@ const AddTransactionModal = ({
               inputMode="decimal"
             />
           )}
+
+          {/* SECCIÓN DE ACCIONES MODIFICADA */}
           <div className="modal-actions">
-            <button type="button" className="btn-cancel" onClick={onClose}>
-              Cancelar
-            </button>
-            <button type="submit" className="btn-submit">
-              Guardar
-            </button>
+            {isVenta && (
+              <div className="venta-total">
+                <strong>Total: {formatCurrency(ventaTotal)}</strong>
+              </div>
+            )}
+            <div className="modal-actions-buttons">
+              <button type="button" className="btn-cancel" onClick={onClose}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn-submit">
+                Guardar
+              </button>
+            </div>
           </div>
         </form>
       </div>

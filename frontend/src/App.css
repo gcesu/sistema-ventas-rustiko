@@ -452,7 +452,8 @@ body {
 }
 .modal-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between; /* Empuja el total a la izq y los botones a la der */
+  align-items: center;
   gap: 12px;
   margin-top: 32px;
 }
@@ -464,6 +465,10 @@ body {
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s;
+}
+.modal-actions-buttons {
+  display: flex;
+  gap: 12px;
 }
 .btn-cancel {
   background-color: #e9ecef;
@@ -542,6 +547,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: 220px; /* Altura máxima antes de mostrar scroll */
+  overflow-y: auto;   /* Muestra el scrollbar vertical si es necesario */
+  padding: 8px;       /* Un poco de espacio interno */
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  background-color: #f8f9fa;
 }
 .venta-item-row {
   display: flex;
@@ -571,14 +582,13 @@ body {
   padding: 8px;
   border-radius: 8px;
   cursor: pointer;
-  margin-top: 8px;
+  margin-top: 0; /* Ajustado */
+  text-align: center;
 }
 .venta-total {
-  text-align: right;
-  font-size: 18px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #dee2e6;
+  font-size: 20px;
+  font-weight: 500;
+  color: #1c1c1e;
 }
 .venta-item-row input.input-cantidad {
   width: 70px;
