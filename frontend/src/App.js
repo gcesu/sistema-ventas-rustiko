@@ -722,6 +722,9 @@ const AddTransactionModal = ({
       : "credito"
   );
 
+  // ref para el contenedor con scroll
+  const itemsContainerRef = useRef(null);
+
   useEffect(() => {
     if (transactionToEdit) {
       setFecha(transactionToEdit.fecha.slice(0, 10));
@@ -741,12 +744,21 @@ const AddTransactionModal = ({
         );
       } else {
         // Inicia con un item vacío si es una nueva venta
-        setItems([
-          { tempId: Date.now(), descripcion: "", cantidad: 1, precio: "" },
-        ]);
+        setItems([ { tempId: Date.now(), descripcion: "", cantidad: 1, precio: "" } ]);
       }
     }
   }, [transactionToEdit, isVenta]);
+
+  // cuando cambia la cantidad de items, desplaza el scroll hasta el final
+  useEffect(() => {
+    if (itemsContainerRef.current) {
+      const el = itemsContainerRef.current;
+      // pequeña espera para asegurar render completo antes de scrollear en navegadores lentos
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
+    }
+  }, [items.length]);
 
   const handleItemChange = useCallback((index, field, value) => {
     setItems((prevItems) => {
@@ -767,6 +779,7 @@ const AddTransactionModal = ({
       ...prevItems,
       { tempId: Date.now(), descripcion: "", cantidad: 1, precio: "" },
     ]);
+    // no es necesario scrollear aquí porque el useEffect [items.length] se encarga
   }, []);
 
   const handleRemoveItem = useCallback((indexToRemove) => {
@@ -891,7 +904,7 @@ const AddTransactionModal = ({
               </div>
               
               {/* Contenedor de productos con scroll */}
-              <div className="venta-items-container">
+              <div className="venta-items-container" ref={itemsContainerRef}>
                 {items.map((item, index) => (
                   <div className="venta-item-row" key={item.id || item.tempId}>
                     <ItemInput
@@ -1197,6 +1210,10 @@ const ClienteDetail = ({ cliente, onBack }) => {
     saldo_pendiente: 0,
   });
 
+  // Estados separados para cada tarjeta
+  const [showVentas, setShowVentas] = useState(false);
+  const [showAbonos, setShowAbonos] = useState(false);
+
   const [transactionModal, setTransactionModal] = useState({
     isOpen: false,
     type: null,
@@ -1390,6 +1407,7 @@ const ClienteDetail = ({ cliente, onBack }) => {
       <button onClick={onBack} className="back-btn">
         <BackIcon /> Volver a Clientes
       </button>
+
       <div className="cliente-header">
         <h2>{cliente.nombre_completo}</h2>
         <p>
@@ -1402,18 +1420,100 @@ const ClienteDetail = ({ cliente, onBack }) => {
 
       <div className="summary-cards">
         <div className="summary-card ventas">
+          {/* botón dentro de la card */}
+          <button
+            className="toggle-saldos-btn"
+            onClick={() => setShowVentas((s) => !s)}
+            title={showVentas ? "Ocultar Total Ventas" : "Mostrar Total Ventas"}
+            aria-pressed={showVentas}
+            aria-label="toggle-total-ventas"
+          >
+            {showVentas ? (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            ) : (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M17.94 17.94A10.06 10.06 0 0 1 12 20c-7 0-11-8-11-8a20.6 20.6 0 0 1 5.06-6.94"></path>
+                <path d="M1 1l22 22"></path>
+              </svg>
+            )}
+          </button>
           <h4>Total Ventas (Todas)</h4>
-          <p>{formatCurrency(saldos.total_todas_ventas)}</p>
+          <p>
+            {showVentas ? (
+              formatCurrency(saldos.total_todas_ventas)
+            ) : (
+              <span className="masked-value">••••••</span>
+            )}
+          </p>
         </div>
+
         <div className="summary-card abonos">
+          <button
+            className="toggle-saldos-btn"
+            onClick={() => setShowAbonos((s) => !s)}
+            title={showAbonos ? "Ocultar Total Abonos" : "Mostrar Total Abonos"}
+            aria-pressed={showAbonos}
+            aria-label="toggle-total-abonos"
+          >
+            {showAbonos ? (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            ) : (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M17.94 17.94A10.06 10.06 0 0 1 12 20c-7 0-11-8-11-8a20.6 20.6 0 0 1 5.06-6.94"></path>
+                <path d="M1 1l22 22"></path>
+              </svg>
+            )}
+          </button>
           <h4>Total Abonos</h4>
-          <p>{formatCurrency(saldos.total_abonos)}</p>
+          <p>
+            {showAbonos ? (
+              formatCurrency(saldos.total_abonos)
+            ) : (
+              <span className="masked-value">••••••</span>
+            )}
+          </p>
         </div>
+
         <div className="summary-card saldo">
           <h4>Saldo Pendiente</h4>
           <p>{formatCurrency(saldos.saldo_pendiente)}</p>
         </div>
       </div>
+
       <div className="detail-actions">
         <button
           className="action-btn green"
@@ -1453,7 +1553,6 @@ const ClienteDetail = ({ cliente, onBack }) => {
                     </span>
                     <small></small>
                   </div>
-                  {/* --- CÓDIGO RESTAURADO: Botones de acción --- */}
                   <div className="item-action">
                     <span className="monto-venta">
                       {formatCurrency(venta.monto_total)}
@@ -1491,6 +1590,7 @@ const ClienteDetail = ({ cliente, onBack }) => {
             onPageChange={setVentasPage}
           />
         </div>
+
         <div className="history-column">
           <h3>Historial de Abonos</h3>
           <ul>
@@ -1505,7 +1605,6 @@ const ClienteDetail = ({ cliente, onBack }) => {
                     <span>Abono - {formatDateTime(abono.fecha)}</span>
                     <small></small>
                   </div>
-                  {/* --- CÓDIGO RESTAURADO: Botones de acción --- */}
                   <div className="item-action">
                     <span className="monto-abono">
                       {formatCurrency(abono.monto)}

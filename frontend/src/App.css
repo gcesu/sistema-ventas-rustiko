@@ -280,6 +280,68 @@ body {
   background-color: #cff4fc;
   color: #055160;
 }
+.summary-card {
+  position: relative; /* permite ubicar el botón dentro de la card */
+}
+
+.summary-card .toggle-saldos-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 42px;
+  height: 42px;
+  padding: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.06);
+  background: transparent;
+  color: inherit;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.06);
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s, background 0.12s;
+  z-index: 6;
+}
+
+/* variantes por tipo de card para integrarse con el color de cada card */
+.summary-card.ventas .toggle-saldos-btn {
+  border-color: rgba(15,81,50,0.08);
+  color: #0f5132;
+}
+.summary-card.abonos .toggle-saldos-btn {
+  border-color: rgba(102,77,3,0.08);
+  color: #664d03;
+}
+.summary-card.saldo .toggle-saldos-btn {
+  border-color: rgba(5,81,96,0.08);
+  color: #055160;
+}
+
+/* estado activo (cuando muestra el total) */
+.summary-card .toggle-saldos-btn[aria-pressed="true"] {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.09);
+  background: rgba(255,255,255,1);
+}
+
+/* hover */
+.summary-card .toggle-saldos-btn:hover {
+  transform: translateY(-2px);
+  background: rgba(255,255,255,1);
+}
+
+/* icono */
+.summary-card .toggle-saldos-btn svg {
+  width: 18px;
+  height: 18px;
+}
+.masked-value {
+  display: inline-block;
+  letter-spacing: 4px;
+  font-weight: 700;
+  color: #6c757d;
+}
 .detail-actions {
   display: flex;
   justify-content: flex-end;
